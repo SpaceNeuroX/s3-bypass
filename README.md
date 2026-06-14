@@ -33,7 +33,132 @@
 ## 🔌 Конфигурация
 
 * **Готовые профили:** готовые для подключения конфиги можно взять в Telegram-боте 👉 **[@darkbitVPN_bot](https://t.me/darkbitVPN_bot)**.
-* **Собственный сервер:** вы также можете поднять и настроить собственный прокси-сервер (для этого вам потребуется арендовать S3-совместимое объектное хранилище) — подробная инструкция по развертыванию серверной части приведена в [статье автора](https://www.linkedin.com/pulse/another-way-bypass-internet-censors-white-lists-vladislav-simonov-arrrf/).
+* **Собственный сервер:** вы также можете развернуть собственный прокси-сервер по инструкции ниже.
+
+---
+
+## 🛠️ Развертывание собственного сервера
+
+Для создания собственного туннеля через S3 вам понадобятся:
+1. **VPS-сервер** за пределами зоны блокировок.
+2. **Модифицированное ядро Xray-core** с поддержкой протокола `fedarisha`:
+   👉 **[Fedarisha/Xray-core-fedarisha](https://github.com/Fedarisha/Xray-core-fedarisha)** (необходимо собрать и запустить на стороне сервера).
+3. **S3-совместимое объектное хранилище** (например, Yandex Object Storage, VK Cloud S3, Selectel S3, AWS S3 и др.), чьи домены находятся в «белых списках» вашей сети.
+
+### 1. Подготовка S3-хранилища
+* Создайте аккаунт у S3-провайдера.
+* Создайте новую корзину (bucket), например `vlt-alpha`.
+* Выпустите ключи доступа (`Access Key ID` и `Secret Access Key`).
+
+### 2. Настройка серверной части (VPS)
+Запустите на вашем VPS-сервере бинарный файл **[Xray-core-fedarisha](https://github.com/Fedarisha/Xray-core-fedarisha)** с использованием следующего конфигурационного файла (`server_config.json`):
+
+```json
+{
+  "log": {
+    "loglevel": "info"
+  },
+  "inbounds": [
+    {
+      "tag": "fedarisha-in",
+      "protocol": "fedarisha",
+      "settings": {
+        "tuning": {
+          "idleTimeoutSec": 300,
+          "pollIntervalMs": 100,
+          "writeIntervalMs": 20,
+          "maxFileSizeBytes": 2097152
+        },
+        "clients": [
+          {
+            "id": "4",
+            "email": "demo-user-4",
+            "level": 0
+          }
+        ],
+        "storage": {
+          "type": "s3",
+          "bucket": "vlt-alpha",
+          "prefix": "fedarisha/",
+          "sessionsDir": "sessions",
+          "region": "ru-msk",
+          "endpoint": "https://ENDPOINT_S3_STORAGES.ru",
+          "accessKey": "ACCESS_MASTER_STORAGE_KEY",
+          "secretKey": "SECRET_MASTER_STORAGE_KEY"
+        },
+        "webhook": {
+          "enabled": true,
+          "listen": "0.0.0.0:80",
+          "publicUrl": "http://IP_SERVER/webhook",
+          "autoSetup": true
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+```
+
+### 3. Настройка клиентской части (Android)
+Для подключения через клиент **S3 Bypass** импортируйте JSON-файл конфигурации следующего формата:
+
+```json
+{
+  "log": {
+    "loglevel": "info"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "fedarisha",
+      "settings": {
+        "storage": {
+          "type": "s3",
+          "bucket": "vlt-alpha",
+          "endpoint": "https://ENDPOINT_S3_STORAGES.ru",
+          "region": "ru-msk",
+          "prefix": "fedarisha/4/",
+          "sessionsDir": "sessions",
+          "accessKey": "ACCESS_KEY_USER_S3",
+          "secretKey": "SECRET_KEY_USER_S3"
+        },
+        "tuning": {
+          "idleTimeoutSec": 300,
+          "pollIntervalMs": 100,
+          "writeIntervalMs": 20,
+          "maxFileSizeBytes": 2097152
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
+```
+
+Подробное описание концепции и архитектуры решения приведено в [статье автора](https://www.linkedin.com/pulse/another-way-bypass-internet-censors-white-lists-vladislav-simonov-arrrf/).
+
 
 ## 📄 Лицензия
 
