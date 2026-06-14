@@ -32,8 +32,8 @@
 
 ## 🔌 Конфигурация
 
-Готовые для подключения конфиги можно взять в Telegram-боте:
-👉 **[@darkbitVPN_bot](https://t.me/darkbitVPN_bot)**
+* **Готовые профили:** готовые для подключения конфиги можно взять в Telegram-боте 👉 **[@darkbitVPN_bot](https://t.me/darkbitVPN_bot)**.
+* **Собственный сервер:** вы также можете поднять и настроить собственный прокси-сервер — подробная инструкция по развертыванию серверной части приведена в [статье автора](https://www.linkedin.com/pulse/another-way-bypass-internet-censors-white-lists-vladislav-simonov-arrrf/).
 
 ## 📄 Лицензия
 
