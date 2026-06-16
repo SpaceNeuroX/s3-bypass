@@ -292,8 +292,16 @@ class XrayService : VpnService() {
             var endpointHost: String? = null
             var modified = false
 
+            // Track existing tags to prevent 'default outbound handler not exist'
+            val existingTags = mutableSetOf<String>()
+
             for (i in 0 until outbounds.length()) {
                 val outbound = outbounds.getJSONObject(i)
+                val tag = outbound.optString("tag")
+                if (tag.isNotEmpty()) {
+                    existingTags.add(tag)
+                }
+
                 if (outbound.optString("protocol") != "fedarisha") continue
                 val storage = outbound.optJSONObject("settings")?.optJSONObject("storage") ?: continue
                 val endpoint = storage.optString("endpoint", "")
@@ -307,7 +315,26 @@ class XrayService : VpnService() {
                 modified = true
             }
 
-            if (modified && endpointHost != null) {
+            // Inject fallback outbounds if missing
+            if (!existingTags.contains("direct")) {
+                val directOutbound = org.json.JSONObject()
+                directOutbound.put("tag", "direct")
+                directOutbound.put("protocol", "freedom")
+                outbounds.put(directOutbound)
+                modified = true
+                Log.i(TAG, "Injected missing 'direct' outbound")
+            }
+
+            if (!existingTags.contains("block")) {
+                val blockOutbound = org.json.JSONObject()
+                blockOutbound.put("tag", "block")
+                blockOutbound.put("protocol", "blackhole")
+                outbounds.put(blockOutbound)
+                modified = true
+                Log.i(TAG, "Injected missing 'block' outbound")
+            }
+
+            if (modified) {
                 val resolved = File(filesDir, "config_proxy.json")
                 resolved.writeText(config.toString(2))
                 Log.i(TAG, "Wrote proxy config to: ${resolved.absolutePath}")
