@@ -93,19 +93,21 @@ class XrayService : VpnService() {
                     return@launch
                 }
 
-                // Extract target host first to start proxy on a dynamic port
+                // Set up local HTTP proxy to fix Android DNS resolution for Go binaries
                 writeLog("Parsing configuration files...")
                 val targetHost = getS3Host(configPath)
                 var finalConfigPath = configPath
+                var assignedProxyPort = 0
 
                 if (targetHost != null) {
                     localTlsProxy?.stop()
-                    localTlsProxy = LocalTlsProxy(0, targetHost) // Bind to free port dynamically
+                    localTlsProxy = LocalTlsProxy(0) // Bind to free port dynamically
                     localTlsProxy?.start()
-                    val assignedPort = localTlsProxy?.assignedPort ?: 10809
-                    writeLog("Starting local TLS proxy for endpoint: $targetHost -> localhost:$assignedPort")
-                    
-                    val configPair = prepareTlsProxyConfig(configPath, assignedPort)
+                    assignedProxyPort = localTlsProxy?.assignedPort ?: 0
+                    if (assignedProxyPort > 0) {
+                        writeLog("Started local HTTP CONNECT proxy on localhost:$assignedProxyPort to handle DNS")
+                    }
+                    val configPair = prepareTlsProxyConfig(configPath, assignedProxyPort)
                     finalConfigPath = configPair.second
                 } else {
                     writeLog("Warning: No target host endpoint found in configuration to proxy.")
@@ -149,6 +151,10 @@ class XrayService : VpnService() {
                 val pb = ProcessBuilder(xrayBin.absolutePath, "run", "-c", finalConfigPath)
                 pb.redirectErrorStream(true)
                 pb.environment()["HOME"] = filesDir.absolutePath
+                if (assignedProxyPort > 0) {
+                    pb.environment()["HTTP_PROXY"] = "http://127.0.0.1:$assignedProxyPort"
+                    pb.environment()["HTTPS_PROXY"] = "http://127.0.0.1:$assignedProxyPort"
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
                 } else {
