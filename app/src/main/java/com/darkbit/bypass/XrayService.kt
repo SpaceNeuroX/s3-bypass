@@ -43,6 +43,7 @@ class XrayService : VpnService() {
     private var lastRxBytes = 0L
     private var lastTxBytes = 0L
     private var speedJob: Job? = null
+    private var logcatProcess: Process? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): XrayService = this@XrayService
@@ -90,9 +91,26 @@ class XrayService : VpnService() {
                 try {
                     val logFile = File(File(filesDir, "logs"), "xray.log")
                     if (logFile.exists()) logFile.delete()
+                    Runtime.getRuntime().exec("logcat -c").waitFor() // Clear logcat buffer
                 } catch (e: Exception) {}
 
                 writeLog("Starting connection sequence via AAR...")
+                
+                // Start logcat capturing for GoLog
+                serviceScope.launch(Dispatchers.IO) {
+                    try {
+                        logcatProcess = Runtime.getRuntime().exec(arrayOf("logcat", "-v", "time", "-s", "GoLog:V", "nativeloader:V"))
+                        logcatProcess?.inputStream?.bufferedReader()?.use { reader ->
+                            var line: String?
+                            while (isActive && reader.readLine().also { line = it } != null) {
+                                // Skip empty lines or duplicates if necessary, but just writing is fine
+                                writeLog("logcat: $line")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Logcat capture failed", e)
+                    }
+                }
 
                 // Build VPN tunnel
                 writeLog("Establishing VPN Tunnel interface...")
@@ -157,7 +175,7 @@ class XrayService : VpnService() {
                     val configContent = File(configPath).readText()
                     val jsonConfig = org.json.JSONObject(configContent)
                     
-                    // Устанавливаем пути для логов Xray, чтобы они писались в наш файл
+                    // Устанавливаем пути для логов Xray (хотя GoLog пишется в logcat)
                     val logFile = File(File(filesDir, "logs"), "xray.log")
                     val logObj = jsonConfig.optJSONObject("log") ?: org.json.JSONObject()
                     logObj.put("access", logFile.absolutePath)
@@ -184,13 +202,13 @@ class XrayService : VpnService() {
 
                 // Verify IP through the SOCKS5 proxy
                 serviceScope.launch {
-                    delay(3000) // Ждем 3 секунды для стабилизации туннеля
+                    delay(8000) // Ждем 8 секунд для установки сессии fedarisha
                     try {
                         val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, java.net.InetSocketAddress("127.0.0.1", 10808))
                         val url = java.net.URL("https://api.ipify.org")
                         val conn = url.openConnection(proxy) as java.net.HttpURLConnection
-                        conn.connectTimeout = 5000
-                        conn.readTimeout = 5000
+                        conn.connectTimeout = 10000
+                        conn.readTimeout = 10000
                         val ip = conn.inputStream.bufferedReader().use { it.readText() }
                         writeLog("VPN Verified! Your protected IP: $ip")
                     } catch (e: Exception) {
@@ -223,6 +241,11 @@ class XrayService : VpnService() {
         } catch (e: Exception) {
             writeLog("Error stopping libv2ray: ${e.message}")
         }
+
+        try {
+            logcatProcess?.destroy()
+        } catch (e: Exception) {}
+        logcatProcess = null
 
         // Redirect fd 0 back to /dev/null to release the TUN interface reference
         try {
