@@ -55,6 +55,12 @@ class XrayService : VpnService() {
         createNotificationChannel()
     }
 
+    override fun onRevoke() {
+        super.onRevoke()
+        writeLog("VPN revoked by system (another VPN started). Shutting down...")
+        stopXray()
+    }
+
     @RequiresApi(Build.VERSION_CODES.N)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -175,6 +181,22 @@ class XrayService : VpnService() {
                 startSpeedMonitor()
                 onStatusChanged?.invoke(true)
                 writeLog("Xray core running inside AAR!")
+
+                // Verify IP through the SOCKS5 proxy
+                serviceScope.launch {
+                    delay(3000) // Ждем 3 секунды для стабилизации туннеля
+                    try {
+                        val proxy = java.net.Proxy(java.net.Proxy.Type.SOCKS, java.net.InetSocketAddress("127.0.0.1", 10808))
+                        val url = java.net.URL("https://api.ipify.org")
+                        val conn = url.openConnection(proxy) as java.net.HttpURLConnection
+                        conn.connectTimeout = 5000
+                        conn.readTimeout = 5000
+                        val ip = conn.inputStream.bufferedReader().use { it.readText() }
+                        writeLog("VPN Verified! Your protected IP: $ip")
+                    } catch (e: Exception) {
+                        writeLog("VPN Warning: Connected, but IP verification failed (${e.message})")
+                    }
+                }
 
             } catch (e: Exception) {
                 writeLog("Error running xray from AAR: ${e.message}")
