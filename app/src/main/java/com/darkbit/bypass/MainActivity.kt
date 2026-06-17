@@ -486,7 +486,7 @@ class MainActivity : AppCompatActivity() {
             duration = 500
             interpolator = DecelerateInterpolator()
             addUpdateListener {
-                binding.configSection.translationX = it.animatedValue as Float
+                binding.tvConfigName.translationX = it.animatedValue as Float
             }
         }
         animator.start()
