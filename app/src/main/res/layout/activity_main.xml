@@ -124,7 +124,7 @@
                     android:paddingHorizontal="28dp"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintBottom_toTopOf="@id/configSection"
+                    app:layout_constraintBottom_toTopOf="@id/tvConfigName"
                     android:layout_marginBottom="20dp">
 
                     <!-- Download speed card -->
