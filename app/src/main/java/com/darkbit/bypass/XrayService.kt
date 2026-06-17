@@ -149,8 +149,20 @@ class XrayService : VpnService() {
                     val startLoopMethod = xrayController!!.javaClass.getMethod("startLoop", String::class.java, Int::class.java)
                     
                     val configContent = File(configPath).readText()
+                    val jsonConfig = org.json.JSONObject(configContent)
+                    
+                    // Устанавливаем пути для логов Xray, чтобы они писались в наш файл
+                    val logFile = File(File(filesDir, "logs"), "xray.log")
+                    val logObj = jsonConfig.optJSONObject("log") ?: org.json.JSONObject()
+                    logObj.put("access", logFile.absolutePath)
+                    logObj.put("error", logFile.absolutePath)
+                    logObj.put("loglevel", "info")
+                    jsonConfig.put("log", logObj)
+                    
+                    val finalConfigContent = jsonConfig.toString()
+                    
                     // Передаем настоящий FD туннеля, чтобы Xray смог его подхватить!
-                    startLoopMethod.invoke(xrayController, configContent, vpnInterface!!.fd)
+                    startLoopMethod.invoke(xrayController, finalConfigContent, vpnInterface!!.fd)
                     
                     writeLog("Successfully started Xray via libv2ray.Libv2ray!")
                 } catch (e: Exception) {
