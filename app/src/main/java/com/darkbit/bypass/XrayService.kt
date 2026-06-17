@@ -28,8 +28,6 @@ class XrayService : VpnService() {
     }
 
     private val binder = LocalBinder()
-    private var xrayProcess: Process? = null
-    private var localTlsProxy: LocalTlsProxy? = null
     private var vpnInterface: ParcelFileDescriptor? = null
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -84,17 +82,7 @@ class XrayService : VpnService() {
                     if (logFile.exists()) logFile.delete()
                 } catch (e: Exception) {}
 
-                writeLog("Starting connection sequence...")
-
-                // Copy xray binary from assets if needed
-                val xrayBin = prepareXrayBinary() ?: run {
-                    writeLog("Error: Failed to prepare xray binary")
-                    stopSelf()
-                    return@launch
-                }
-
-                writeLog("Parsing configuration files...")
-                val finalConfigPath = configPath
+                writeLog("Starting connection sequence via AAR...")
 
                 // Build VPN tunnel
                 writeLog("Establishing VPN Tunnel interface...")
@@ -130,43 +118,38 @@ class XrayService : VpnService() {
                     return@launch
                 }
 
-                writeLog("Starting Xray core process...")
-                val pb = ProcessBuilder(xrayBin.absolutePath, "run", "-c", finalConfigPath)
-                pb.redirectErrorStream(true)
-                pb.environment()["HOME"] = filesDir.absolutePath
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
-                } else {
-                    writeLog("Warning: Full VPN feature requires Android 8.0+")
-                }
-
-                xrayProcess = pb.start()
-                connectionStartTime = System.currentTimeMillis()
-                startSpeedMonitor()
-                onStatusChanged?.invoke(true)
-                writeLog("Xray core running. Streaming stdout/stderr output:")
-
-                // Read logs
-                xrayProcess?.inputStream?.bufferedReader()?.use { reader ->
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        writeLog("xray: $line")
+                writeLog("Invoking Xray core from AAR library...")
+                
+                // We use reflection so the code compiles even without the AAR file present,
+                // and automatically supports both v2rayNG's AAR and custom AARs.
+                try {
+                    // Try v2rayNG style wrapper first (AndroidLibXrayLite / AndroidLibV2rayLite)
+                    val clazz = Class.forName("libv2ray.Libv2ray")
+                    val method = clazz.getMethod("startV2Ray", String::class.java, String::class.java)
+                    val configContent = File(configPath).readText()
+                    method.invoke(null, filesDir.absolutePath, configContent)
+                    writeLog("Successfully started Xray via libv2ray.Libv2ray!")
+                } catch (e1: Exception) {
+                    try {
+                        // Try custom wrapper if they built it themselves
+                        val clazz = Class.forName("xray_wrapper.Xray_wrapper")
+                        val method = clazz.getMethod("startXray", String::class.java)
+                        method.invoke(null, configPath)
+                        writeLog("Successfully started Xray via xray_wrapper!")
+                    } catch (e2: Exception) {
+                        writeLog("Error: Could not find libv2ray or xray_wrapper classes in the AAR!")
+                        writeLog("Make sure you dropped the AAR file into app/libs/ and synced gradle.")
+                        throw e2
                     }
                 }
 
-                val exitCode = xrayProcess?.waitFor() ?: -1
-                writeLog("Xray core exited with code: $exitCode")
-                onStatusChanged?.invoke(false)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                } else {
-                    @Suppress("DEPRECATION")
-                    stopForeground(true)
-                }
-                stopSelf()
+                connectionStartTime = System.currentTimeMillis()
+                startSpeedMonitor()
+                onStatusChanged?.invoke(true)
+                writeLog("Xray core running inside AAR!")
 
             } catch (e: Exception) {
-                writeLog("Error running xray: ${e.message}")
+                writeLog("Error running xray from AAR: ${e.message}")
                 onStatusChanged?.invoke(false)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -180,23 +163,20 @@ class XrayService : VpnService() {
     }
 
     private fun cleanup() {
+        writeLog("Stopping Xray AAR...")
         try {
-            localTlsProxy?.stop()
+            val clazz = Class.forName("libv2ray.Libv2ray")
+            val method = clazz.getMethod("stopV2Ray")
+            method.invoke(null)
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping TLS proxy", e)
-        }
-        localTlsProxy = null
-
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                xrayProcess?.destroyForcibly()
-            } else {
-                xrayProcess?.destroy()
+            try {
+                val clazz = Class.forName("xray_wrapper.Xray_wrapper")
+                val method = clazz.getMethod("stopXray")
+                method.invoke(null)
+            } catch (e2: Exception) {
+                // Ignore
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to kill xray process", e)
         }
-        xrayProcess = null
 
         // Redirect fd 0 back to /dev/null to release the TUN interface reference
         try {
@@ -256,107 +236,6 @@ class XrayService : VpnService() {
         }
         stopSelf()
     }
-
-    private fun prepareXrayBinary(): File? {
-        val xrayFile = File(applicationInfo.nativeLibraryDir, "libxray.so")
-        Log.i(TAG, "Looking for xray at: ${xrayFile.absolutePath}, exists: ${xrayFile.exists()}")
-        return if (xrayFile.exists()) xrayFile else null
-    }
-
-    /**
-     * Parses the config, finds the fedarisha S3 endpoint, extracts the host,
-     * and rewrites the endpoint to http://127.0.0.1:port.
-     * Returns Pair(targetHost, patchedConfigPath)
-     */
-    private fun prepareTlsProxyConfig(configPath: String, proxyPort: Int): Pair<String?, String> {
-        return try {
-            val configFile = File(configPath)
-            val config = org.json.JSONObject(configFile.readText())
-            val outbounds = config.optJSONArray("outbounds") ?: return Pair(null, configPath)
-
-            var endpointHost: String? = null
-            var modified = false
-
-            // Track existing tags to prevent 'default outbound handler not exist'
-            val existingTags = mutableSetOf<String>()
-
-            for (i in 0 until outbounds.length()) {
-                val outbound = outbounds.getJSONObject(i)
-                val tag = outbound.optString("tag")
-                if (tag.isNotEmpty()) {
-                    existingTags.add(tag)
-                }
-
-                if (outbound.optString("protocol") != "fedarisha") continue
-                val storage = outbound.optJSONObject("settings")?.optJSONObject("storage") ?: continue
-                val endpoint = storage.optString("endpoint", "")
-                if (endpoint.isEmpty()) continue
-                
-                val url = java.net.URL(endpoint)
-                endpointHost = url.host
-                if (endpointHost.matches(Regex("[\\d.]+"))) continue
-                
-                storage.put("endpoint", "http://127.0.0.1:$proxyPort")
-                modified = true
-            }
-
-            // Inject fallback outbounds if missing
-            if (!existingTags.contains("direct")) {
-                val directOutbound = org.json.JSONObject()
-                directOutbound.put("tag", "direct")
-                directOutbound.put("protocol", "freedom")
-                outbounds.put(directOutbound)
-                modified = true
-                Log.i(TAG, "Injected missing 'direct' outbound")
-            }
-
-            if (!existingTags.contains("block")) {
-                val blockOutbound = org.json.JSONObject()
-                blockOutbound.put("tag", "block")
-                blockOutbound.put("protocol", "blackhole")
-                outbounds.put(blockOutbound)
-                modified = true
-                Log.i(TAG, "Injected missing 'block' outbound")
-            }
-
-            if (modified) {
-                val resolved = File(filesDir, "config_proxy.json")
-                resolved.writeText(config.toString(2))
-                Log.i(TAG, "Wrote proxy config to: ${resolved.absolutePath}")
-                return Pair(endpointHost, resolved.absolutePath)
-            }
-            Pair(null, configPath)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to prepare TLS proxy config", e)
-            Pair(null, configPath)
-        }
-    }
-
-    private fun getS3Host(configPath: String): String? {
-        return try {
-            val configFile = File(configPath)
-            val config = org.json.JSONObject(configFile.readText())
-            val outbounds = config.optJSONArray("outbounds") ?: return null
-            for (i in 0 until outbounds.length()) {
-                val outbound = outbounds.getJSONObject(i)
-                if (outbound.optString("protocol") != "fedarisha") continue
-                val storage = outbound.optJSONObject("settings")?.optJSONObject("storage") ?: continue
-                val endpoint = storage.optString("endpoint", "")
-                if (endpoint.isNotEmpty()) {
-                    val url = java.net.URL(endpoint)
-                    val host = url.host
-                    if (!host.matches(Regex("[\\d.]+"))) {
-                        return host
-                    }
-                }
-            }
-            null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-
 
     private fun buildNotification(downBytes: Long = 0, upBytes: Long = 0): Notification {
         val stopIntent = Intent(this, XrayService::class.java).apply {

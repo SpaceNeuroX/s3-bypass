@@ -11,8 +11,8 @@ android {
         applicationId "com.darkbit.bypass"
         minSdk 21
         targetSdk 35
-        versionCode 10
-        versionName "1.0.6"
+        versionCode 11
+        versionName "1.0.7"
     }
 
     buildTypes {
@@ -53,6 +53,7 @@ android {
 }
 
 dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
