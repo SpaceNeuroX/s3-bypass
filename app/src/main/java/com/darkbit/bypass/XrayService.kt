@@ -101,7 +101,7 @@ class XrayService : VpnService() {
                     try {
                         logcatProcess = Runtime.getRuntime().exec(arrayOf("logcat", "-v", "time", "-s", "GoLog:V", "nativeloader:V"))
                         logcatProcess?.inputStream?.bufferedReader()?.use { reader ->
-                            var line: String?
+                            var line: String? = null
                             while (isActive && reader.readLine().also { line = it } != null) {
                                 // Skip empty lines or duplicates if necessary, but just writing is fine
                                 writeLog("logcat: $line")
