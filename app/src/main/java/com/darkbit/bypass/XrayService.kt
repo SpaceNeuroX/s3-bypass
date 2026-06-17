@@ -93,25 +93,8 @@ class XrayService : VpnService() {
                     return@launch
                 }
 
-                // Set up local HTTP proxy to fix Android DNS resolution for Go binaries
                 writeLog("Parsing configuration files...")
-                val targetHost = getS3Host(configPath)
-                var finalConfigPath = configPath
-                var assignedProxyPort = 0
-
-                if (targetHost != null) {
-                    localTlsProxy?.stop()
-                    localTlsProxy = LocalTlsProxy(0) // Bind to free port dynamically
-                    localTlsProxy?.start()
-                    assignedProxyPort = localTlsProxy?.assignedPort ?: 0
-                    if (assignedProxyPort > 0) {
-                        writeLog("Started local HTTP CONNECT proxy on localhost:$assignedProxyPort to handle DNS")
-                    }
-                    val configPair = prepareTlsProxyConfig(configPath, assignedProxyPort)
-                    finalConfigPath = configPair.second
-                } else {
-                    writeLog("Warning: No target host endpoint found in configuration to proxy.")
-                }
+                val finalConfigPath = configPath
 
                 // Build VPN tunnel
                 writeLog("Establishing VPN Tunnel interface...")
@@ -151,10 +134,6 @@ class XrayService : VpnService() {
                 val pb = ProcessBuilder(xrayBin.absolutePath, "run", "-c", finalConfigPath)
                 pb.redirectErrorStream(true)
                 pb.environment()["HOME"] = filesDir.absolutePath
-                if (assignedProxyPort > 0) {
-                    pb.environment()["HTTP_PROXY"] = "http://127.0.0.1:$assignedProxyPort"
-                    pb.environment()["HTTPS_PROXY"] = "http://127.0.0.1:$assignedProxyPort"
-                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     pb.redirectInput(ProcessBuilder.Redirect.INHERIT)
                 } else {
@@ -315,11 +294,10 @@ class XrayService : VpnService() {
                 
                 val url = java.net.URL(endpoint)
                 endpointHost = url.host
+                if (endpointHost.matches(Regex("[\\d.]+"))) continue
                 
-                // We purposefully DO NOT replace the endpoint with LocalTlsProxy (http://127.0.0.1:port)
-                // because strict S3 providers (like VK Cloud, Amazon, Yandex) strictly validate the Host header
-                // and AWS v4 signatures. Altering the endpoint breaks the signature and causes 400 Bad Request.
-                // The connection will go directly via Xray core.
+                storage.put("endpoint", "http://127.0.0.1:$proxyPort")
+                modified = true
             }
 
             // Inject fallback outbounds if missing
