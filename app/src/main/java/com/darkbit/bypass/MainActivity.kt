@@ -23,6 +23,9 @@ import android.widget.ScrollView
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -36,6 +39,8 @@ class MainActivity : AppCompatActivity() {
 
     private val timerHandler = Handler(Looper.getMainLooper())
     private var timerRunnable: Runnable? = null
+
+    private var logRefreshJob: Job? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -133,8 +138,60 @@ class MainActivity : AppCompatActivity() {
             openUrl("https://t.me/darkbitVPN_bot")
         }
 
-        binding.tvLogs.setOnClickListener {
-            showLogsDialog()
+        // Setup Bottom Navigation
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> {
+                    binding.layoutHome.visibility = View.VISIBLE
+                    binding.layoutLogs.visibility = View.GONE
+                    binding.layoutAbout.visibility = View.GONE
+                    stopLogAutoRefresh()
+                    true
+                }
+                R.id.nav_logs -> {
+                    binding.layoutHome.visibility = View.GONE
+                    binding.layoutLogs.visibility = View.VISIBLE
+                    binding.layoutAbout.visibility = View.GONE
+                    startLogAutoRefresh()
+                    true
+                }
+                R.id.nav_about -> {
+                    binding.layoutHome.visibility = View.GONE
+                    binding.layoutLogs.visibility = View.GONE
+                    binding.layoutAbout.visibility = View.VISIBLE
+                    stopLogAutoRefresh()
+                    true
+                }
+                else -> false
+            }
+        }
+
+        // Setup Logs filters and actions
+        binding.rgLogFilters.setOnCheckedChangeListener { _, _ -> updateLogsView() }
+        
+        binding.btnLogClear.setOnClickListener {
+            val logFile = File(File(filesDir, "logs"), "xray.log")
+            if (logFile.exists()) {
+                logFile.delete()
+            }
+            binding.tvLogContent.text = "Логи пусты..."
+            Toast.makeText(this, "Логи очищены", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnLogCopy.setOnClickListener {
+            val logText = binding.tvLogContent.text.toString()
+            if (logText.isEmpty() || logText == "Логи пусты...") {
+                Toast.makeText(this, "Логи пусты", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            try {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("Xray Logs", logText)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "Логи скопированы в буфер обмена", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Ошибка копирования: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
 
         updateUI(connected = false)
@@ -168,6 +225,61 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopTimer()
+        stopLogAutoRefresh()
+    }
+
+    private fun startLogAutoRefresh() {
+        stopLogAutoRefresh()
+        logRefreshJob = CoroutineScope(Dispatchers.Main).launch {
+            while (isActive) {
+                updateLogsView()
+                delay(1000)
+            }
+        }
+    }
+
+    private fun stopLogAutoRefresh() {
+        logRefreshJob?.cancel()
+        logRefreshJob = null
+    }
+
+    private fun updateLogsView() {
+        val logFile = File(File(filesDir, "logs"), "xray.log")
+        if (logFile.exists() && logFile.length() > 0) {
+            try {
+                val logsText = logFile.readText()
+                val lines = logsText.lines()
+                val isErrorFilter = binding.rbLogError.isChecked
+
+                val filtered = if (isErrorFilter) {
+                    lines.filter { it.contains("Warning", ignoreCase = true) || 
+                                   it.contains("Error", ignoreCase = true) || 
+                                   it.contains("E/", ignoreCase = false) || 
+                                   it.contains("W/", ignoreCase = false) }
+                        .joinToString("\n")
+                } else {
+                    logsText
+                }
+
+                if (filtered.isBlank() && isErrorFilter) {
+                    binding.tvLogContent.text = "Ошибок не найдено..."
+                } else {
+                    // Only auto-scroll if user is at the bottom
+                    val isAtBottom = binding.scrollLogs.scrollY >= (binding.scrollLogs.getChildAt(0).measuredHeight - binding.scrollLogs.measuredHeight - 50)
+                    binding.tvLogContent.text = filtered
+                    
+                    if (isAtBottom) {
+                        binding.scrollLogs.post {
+                            binding.scrollLogs.fullScroll(View.FOCUS_DOWN)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                binding.tvLogContent.text = "Ошибка чтения логов: ${e.message}"
+            }
+        } else {
+            binding.tvLogContent.text = "Логи пусты..."
+        }
     }
 
     private fun toggleConnection() {
@@ -468,88 +580,6 @@ class MainActivity : AppCompatActivity() {
             putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain", "*/*"))
         }
         importConfigLauncher.launch(intent)
-    }
-
-    private fun showLogsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_logs, null)
-        val scrollLogs = dialogView.findViewById<ScrollView>(R.id.scrollLogs)
-        val tvLogContent = dialogView.findViewById<TextView>(R.id.tvLogContent)
-        val btnLogsClear = dialogView.findViewById<View>(R.id.btnLogsClear)
-        val btnLogsCopy = dialogView.findViewById<View>(R.id.btnLogsCopy)
-        val btnLogsShare = dialogView.findViewById<View>(R.id.btnLogsShare)
-
-        val logFile = File(File(filesDir, "logs"), "xray.log")
-        
-        fun loadLogs() {
-            if (logFile.exists() && logFile.length() > 0) {
-                try {
-                    val logsText = logFile.readText()
-                    tvLogContent.text = logsText
-                } catch (e: Exception) {
-                    tvLogContent.text = "Ошибка чтения логов: ${e.message}"
-                }
-            } else {
-                tvLogContent.text = "Логи пусты..."
-            }
-            // Auto scroll to bottom
-            scrollLogs.post {
-                scrollLogs.fullScroll(View.FOCUS_DOWN)
-            }
-        }
-
-        loadLogs()
-
-        val dialog = com.google.android.material.bottomsheet.BottomSheetDialog(this)
-        dialog.setContentView(dialogView)
-        dialog.setOnShowListener {
-            val bottomSheet = dialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-            bottomSheet?.setBackgroundResource(android.R.color.transparent)
-        }
-
-        btnLogsClear.setOnClickListener {
-            if (logFile.exists()) {
-                logFile.delete()
-            }
-            tvLogContent.text = "Логи пусты..."
-            Toast.makeText(this, "Логи очищены", Toast.LENGTH_SHORT).show()
-        }
-
-        btnLogsCopy.setOnClickListener {
-            val logText = tvLogContent.text.toString()
-            if (logText.isEmpty() || logText == "Логи пусты...") {
-                Toast.makeText(this, "Логи пусты", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            try {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("Xray Logs", logText)
-                clipboard.setPrimaryClip(clip)
-                Toast.makeText(this, "Логи скопированы в буфер обмена", Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(this, "Ошибка копирования: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnLogsShare.setOnClickListener {
-            val logText = tvLogContent.text.toString()
-            if (logText.isEmpty() || logText == "Логи пусты...") {
-                Toast.makeText(this, "Логи пусты", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            try {
-                val sendIntent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, logText)
-                    type = "text/plain"
-                }
-                val shareIntent = Intent.createChooser(sendIntent, "Поделиться логами")
-                startActivity(shareIntent)
-            } catch (e: Exception) {
-                Toast.makeText(this, "Не удалось отправить логи: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        dialog.show()
     }
 
     private fun showProfilesDialog() {
