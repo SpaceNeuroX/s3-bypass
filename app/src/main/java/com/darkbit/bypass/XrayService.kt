@@ -16,8 +16,12 @@ import java.io.FileDescriptor
 import kotlinx.coroutines.*
 import java.io.File
 import java.io.IOException
+import java.lang.reflect.Proxy
 
 class XrayService : VpnService() {
+
+    private var xrayController: Any? = null
+
 
     companion object {
         const val TAG = "XrayService"
@@ -120,27 +124,39 @@ class XrayService : VpnService() {
 
                 writeLog("Invoking Xray core from AAR library...")
                 
-                // We use reflection so the code compiles even without the AAR file present,
-                // and automatically supports both v2rayNG's AAR and custom AARs.
                 try {
-                    // Try v2rayNG style wrapper first (AndroidLibXrayLite / AndroidLibV2rayLite)
+                    // Используем нативный API libv2ray из AndroidLibXrayLite
                     val clazz = Class.forName("libv2ray.Libv2ray")
-                    val method = clazz.getMethod("startV2Ray", String::class.java, String::class.java)
-                    val configContent = File(configPath).readText()
-                    method.invoke(null, filesDir.absolutePath, configContent)
-                    writeLog("Successfully started Xray via libv2ray.Libv2ray!")
-                } catch (e1: Exception) {
-                    try {
-                        // Try custom wrapper if they built it themselves
-                        val clazz = Class.forName("xray_wrapper.Xray_wrapper")
-                        val method = clazz.getMethod("startXray", String::class.java)
-                        method.invoke(null, configPath)
-                        writeLog("Successfully started Xray via xray_wrapper!")
-                    } catch (e2: Exception) {
-                        writeLog("Error: Could not find libv2ray or xray_wrapper classes in the AAR!")
-                        writeLog("Make sure you dropped the AAR file into app/libs/ and synced gradle.")
-                        throw e2
+                    clazz.getMethod("initCoreEnv", String::class.java, String::class.java)
+                         .invoke(null, filesDir.absolutePath, "")
+                    
+                    val callbackHandlerClass = Class.forName("libv2ray.CoreCallbackHandler")
+                    val proxy = Proxy.newProxyInstance(
+                        clazz.classLoader,
+                        arrayOf(callbackHandlerClass)
+                    ) { _, method, _ ->
+                        when (method.name) {
+                            "onEmitStatus" -> 0L
+                            "shutdown" -> 0L
+                            "startup" -> 0L
+                            else -> 0L
+                        }
                     }
+                    
+                    xrayController = clazz.getMethod("newCoreController", callbackHandlerClass)
+                        .invoke(null, proxy)
+                    
+                    val startLoopMethod = xrayController!!.javaClass.getMethod("startLoop", String::class.java, Int::class.java)
+                    
+                    val configContent = File(configPath).readText()
+                    // Передаем настоящий FD туннеля, чтобы Xray смог его подхватить!
+                    startLoopMethod.invoke(xrayController, configContent, vpnInterface!!.fd)
+                    
+                    writeLog("Successfully started Xray via libv2ray.Libv2ray!")
+                } catch (e: Exception) {
+                    writeLog("Error: Failed to invoke libv2ray classes in the AAR!")
+                    writeLog(e.stackTraceToString())
+                    throw e
                 }
 
                 connectionStartTime = System.currentTimeMillis()
@@ -165,17 +181,13 @@ class XrayService : VpnService() {
     private fun cleanup() {
         writeLog("Stopping Xray AAR...")
         try {
-            val clazz = Class.forName("libv2ray.Libv2ray")
-            val method = clazz.getMethod("stopV2Ray")
-            method.invoke(null)
-        } catch (e: Exception) {
-            try {
-                val clazz = Class.forName("xray_wrapper.Xray_wrapper")
-                val method = clazz.getMethod("stopXray")
-                method.invoke(null)
-            } catch (e2: Exception) {
-                // Ignore
+            if (xrayController != null) {
+                val stopLoopMethod = xrayController!!.javaClass.getMethod("stopLoop")
+                stopLoopMethod.invoke(xrayController)
+                xrayController = null
             }
+        } catch (e: Exception) {
+            writeLog("Error stopping libv2ray: ${e.message}")
         }
 
         // Redirect fd 0 back to /dev/null to release the TUN interface reference
