@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_selected="true">
-        <shape android:shape="rectangle">
-            <solid android:color="#0D1525" />
-            <stroke android:color="@color/accent_cyan" android:width="1.5dp" />
-            <corners android:radius="12dp" />
-        </shape>
-    </item>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#18C4C0FF">
     <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#0D111A" />
-            <stroke android:color="#1A2133" android:width="1dp" />
-            <corners android:radius="12dp" />
-        </shape>
+        <selector>
+            <item android:state_selected="true">
+                <shape android:shape="rectangle">
+                    <solid android:color="#1E1A2E" />
+                    <stroke android:color="#6860A8" android:width="1.5dp" />
+                    <corners android:radius="20dp" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="#181520" />
+                    <stroke android:color="#2E2A3C" android:width="1dp" />
+                    <corners android:radius="20dp" />
+                </shape>
+            </item>
+        </selector>
     </item>
-</selector>
+</ripple>

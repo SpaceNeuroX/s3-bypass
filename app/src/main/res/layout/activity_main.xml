@@ -240,14 +240,28 @@
                 android:padding="24dp">
 
                 <TextView
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Ваши Профили"
+                    android:text="ПРОФИЛИ"
                     android:textColor="@color/text_primary"
-                    android:textSize="20sp"
+                    android:textSize="24sp"
+                    android:letterSpacing="0.3"
                     android:fontFamily="sans-serif-medium"
-                    android:gravity="center"
-                    android:layout_marginBottom="24dp"/>
+                    android:textStyle="bold"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="16dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="выберите или импортируйте конфигурацию"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:letterSpacing="0.1"
+                    android:fontFamily="sans-serif-light"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="28dp" />
 
                 <LinearLayout
                     android:id="@+id/layoutProfilesContainer"
@@ -255,14 +269,34 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical" />
 
-                <Button
+                <LinearLayout
                     android:id="@+id/btnImportConfig"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Импорт конфига (.json)"
-                    android:textColor="@color/bg_primary"
-                    android:backgroundTint="@color/accent_cyan"
-                    android:layout_marginTop="24dp"/>
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:background="@drawable/import_button_bg"
+                    android:paddingVertical="16dp"
+                    android:layout_marginTop="24dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_import"
+                        android:layout_marginEnd="10dp"
+                        app:tint="@color/accent_cyan" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ИМПОРТ КОНФИГА (.JSON)"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:letterSpacing="0.05" />
+                </LinearLayout>
 
             </LinearLayout>
         </ScrollView>
@@ -288,29 +322,45 @@
 
             <RadioGroup
                 android:id="@+id/rgLogFilters"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_width="240dp"
+                android:layout_height="48dp"
                 android:orientation="horizontal"
                 android:gravity="center"
+                android:layout_gravity="center_horizontal"
+                android:background="@drawable/bg_log_filter_group"
+                android:padding="4dp"
                 android:layout_marginBottom="12dp">
                 
                 <RadioButton
                     android:id="@+id/rbLogAll"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:minHeight="0dp"
+                    android:paddingHorizontal="12dp"
                     android:text="Все"
-                    android:textColor="@color/text_primary"
-                    android:buttonTint="@color/accent_cyan"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
                     android:checked="true"/>
                 
                 <RadioButton
                     android:id="@+id/rbLogError"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:minHeight="0dp"
+                    android:paddingHorizontal="12dp"
                     android:text="Ошибки"
-                    android:textColor="@color/text_primary"
-                    android:buttonTint="@color/status_disconnected"
-                    android:layout_marginStart="16dp"/>
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"/>
             </RadioGroup>
 
             <!-- Buttons for Clear / Copy -->
@@ -319,21 +369,61 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_marginBottom="8dp">
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginTop="2dp"
+                android:layout_marginBottom="10dp">
                 
-                <Button
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogClear"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.04"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
                     android:text="Очистить"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+                    android:textAllCaps="false"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    app:backgroundTint="@color/bg_surface"
+                    app:cornerRadius="16dp"
+                    app:icon="@drawable/ic_trash"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:iconSize="18dp"
+                    app:iconTint="@color/text_secondary"
+                    app:rippleColor="#18C4C0FF"
+                    app:strokeColor="@color/border_subtle"
+                    app:strokeWidth="1dp"/>
                 
-                <Button
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogCopy"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.04"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="12dp"
                     android:text="Копировать"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"/>
+                    android:textAllCaps="false"
+                    android:textColor="@color/accent_cyan"
+                    android:textSize="13sp"
+                    app:backgroundTint="@color/accent_cyan_dim"
+                    app:cornerRadius="16dp"
+                    app:icon="@drawable/ic_copy"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp"
+                    app:iconSize="18dp"
+                    app:iconTint="@color/accent_cyan"
+                    app:rippleColor="#24C4C0FF"
+                    app:strokeColor="@color/accent_purple_dim"
+                    app:strokeWidth="1dp"/>
             </LinearLayout>
 
             <ScrollView
@@ -341,8 +431,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:background="#121212"
-                android:padding="12dp"
+                android:background="@drawable/console_bg"
+                android:padding="14dp"
                 android:layout_marginHorizontal="16dp"
                 android:layout_marginBottom="16dp"
                 android:fillViewport="true">

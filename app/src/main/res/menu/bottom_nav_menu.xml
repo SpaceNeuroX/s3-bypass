@@ -2,21 +2,21 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_home"
-        android:icon="@android:drawable/ic_menu_compass"
+        android:icon="@drawable/ic_nav_home"
         android:title="Главная" />
 
     <item
         android:id="@+id/nav_profiles"
-        android:icon="@android:drawable/ic_menu_manage"
+        android:icon="@drawable/ic_nav_profiles"
         android:title="Профили" />
 
     <item
         android:id="@+id/nav_logs"
-        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:icon="@drawable/ic_nav_logs"
         android:title="Логи" />
 
     <item
         android:id="@+id/nav_about"
-        android:icon="@android:drawable/ic_menu_info_details"
+        android:icon="@drawable/ic_nav_about"
         android:title="Инфо" />
 </menu>

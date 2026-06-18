@@ -42,17 +42,17 @@ class PowerButton @JvmOverloads constructor(
     private var pressScale = 1f
 
     // New premium palette
-    private val colorDisconnectedOuter = Color.parseColor("#0E1118")
-    private val colorDisconnectedInner = Color.parseColor("#141822")
+    private val colorDisconnectedOuter = Color.parseColor("#121118")
+    private val colorDisconnectedInner = Color.parseColor("#1C1A24")
 
-    private val colorConnectedCyan = Color.parseColor("#00D4FF")
-    private val colorConnectedBlue = Color.parseColor("#0088BB")
+    private val colorConnectedCyan = Color.parseColor("#C4C0FF")
+    private val colorConnectedBlue = Color.parseColor("#8E88FA")
 
-    private val colorConnectingPurple1 = Color.parseColor("#6C5CE7")
-    private val colorConnectingPurple2 = Color.parseColor("#A855F7")
+    private val colorConnectingPurple1 = Color.parseColor("#B5B0FF")
+    private val colorConnectingPurple2 = Color.parseColor("#887FFF")
 
-    private val colorRingDim = Color.parseColor("#1E2433")
-    private val colorIconDim = Color.parseColor("#3D4662")
+    private val colorRingDim = Color.parseColor("#2E2A3C")
+    private val colorIconDim = Color.parseColor("#565370")
 
     init {
         isClickable = true

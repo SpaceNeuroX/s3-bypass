@@ -1,44 +1,83 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:padding="16dp"
-    android:layout_marginBottom="10dp"
+    android:paddingVertical="14dp"
+    android:paddingHorizontal="12dp"
+    android:layout_marginBottom="12dp"
     android:background="@drawable/profile_item_bg"
     android:clickable="true"
     android:focusable="true">
 
-    <RadioButton
-        android:id="@+id/rbSelected"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:clickable="false"
-        android:focusable="false"
-        android:buttonTint="@color/accent_cyan" />
+    <ImageView
+        android:id="@+id/btnDragProfile"
+        android:layout_width="32dp"
+        android:layout_height="40dp"
+        android:padding="7dp"
+        android:src="@drawable/ic_drag_handle"
+        android:contentDescription="Перетащить"
+        app:tint="@color/text_muted"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true" />
 
-    <TextView
-        android:id="@+id/tvProfileName"
+    <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textColor="@color/text_primary"
-        android:textSize="14sp"
-        android:fontFamily="sans-serif-medium"
-        android:layout_marginStart="10dp"
-        android:ellipsize="end"
-        android:maxLines="1" />
+        android:orientation="vertical"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="10dp">
+
+        <TextView
+            android:id="@+id/tvProfileName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium"
+            android:ellipsize="end"
+            android:maxLines="1" />
+
+        <TextView
+            android:id="@+id/tvProfileStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_profile_badge"
+            android:fontFamily="sans-serif-medium"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:text="Активный"
+            android:textColor="@color/accent_cyan"
+            android:textSize="10sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/btnRenameProfile"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:padding="8dp"
+        android:src="@drawable/ic_edit"
+        android:contentDescription="Переименовать"
+        app:tint="#B7B1D8"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true" />
 
     <ImageView
         android:id="@+id/btnDeleteProfile"
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:padding="6dp"
-        android:src="@android:drawable/ic_menu_delete"
-        android:contentDescription="Delete"
-        android:tint="#EF4444"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:padding="8dp"
+        android:src="@drawable/ic_trash"
+        android:contentDescription="Удалить"
+        app:tint="#9E8FA8"
         android:background="?android:attr/selectableItemBackgroundBorderless"
         android:clickable="true"
         android:focusable="true" />

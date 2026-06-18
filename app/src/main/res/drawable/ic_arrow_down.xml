@@ -6,7 +6,7 @@
     <path
         android:pathData="M12,4L12,20M12,20L6,14M12,20L18,14"
         android:strokeWidth="2.5"
-        android:strokeColor="#00D4FF"
+        android:strokeColor="@color/speed_download"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"/>
 </vector>

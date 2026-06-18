@@ -84,6 +84,7 @@ class XrayService : VpnService() {
         return START_NOT_STICKY
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     private fun startXray(configPath: String) {
         serviceScope.launch {
             try {
@@ -256,6 +257,7 @@ class XrayService : VpnService() {
         onStatusChanged?.invoke(false)
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     private fun startSpeedMonitor() {
         lastRxBytes = TrafficStats.getTotalRxBytes()
         lastTxBytes = TrafficStats.getTotalTxBytes()

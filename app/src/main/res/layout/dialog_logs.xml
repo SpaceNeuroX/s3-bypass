@@ -134,7 +134,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Поделиться"
-                android:textColor="#06080F"
+                android:textColor="@color/accent_cyan"
                 android:textSize="13sp"
                 android:fontFamily="sans-serif-medium" />
 

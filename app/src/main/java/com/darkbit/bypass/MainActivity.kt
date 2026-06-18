@@ -8,6 +8,9 @@ import android.net.VpnService
 import android.os.*
 import android.provider.OpenableColumns
 import android.content.pm.PackageManager
+import android.text.InputType
+import android.view.DragEvent
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
@@ -16,10 +19,11 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.darkbit.bypass.databinding.ActivityMainBinding
 import androidx.appcompat.app.AlertDialog
-import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private var timerRunnable: Runnable? = null
 
     private var logRefreshJob: Job? = null
+    private var draggedProfileView: View? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -206,6 +211,7 @@ class MainActivity : AppCompatActivity() {
         checkPrivacyDisclosure()
         checkFirstLaunchGreeting()
         checkForUpdates()
+        handleExternalConfigIntent(intent)
 
         // Set app version dynamically
         try {
@@ -214,6 +220,12 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             binding.tvVersion.text = "Версия 1.0"
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleExternalConfigIntent(intent)
     }
 
     override fun onStart() {
@@ -444,7 +456,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleConfigImport(uri: Uri) {
         try {
-            val fileName = getFileName(uri) ?: "config.json"
+            val fileName = normalizeConfigFileName(getFileName(uri))
             
             // Ensure configs dir exists
             val configsDir = File(filesDir, "configs")
@@ -452,21 +464,84 @@ class MainActivity : AppCompatActivity() {
                 configsDir.mkdirs()
             }
             
-            val destFile = File(configsDir, fileName)
+            val destFile = nextAvailableConfigFile(configsDir, fileName)
 
             contentResolver.openInputStream(uri)?.use { input ->
                 destFile.outputStream().use { output ->
                     input.copyTo(output)
                 }
+            } ?: throw IllegalArgumentException("не удалось открыть файл")
+
+            if (!isJsonConfigFile(destFile)) {
+                destFile.delete()
+                throw IllegalArgumentException("выбранный файл не похож на JSON")
             }
 
             // Set as active
-            setActiveConfig(fileName)
-            Toast.makeText(this, "Конфиг '$fileName' добавлен", Toast.LENGTH_SHORT).show()
+            setActiveConfig(destFile.name)
+            appendProfileOrder(destFile.name)
+            Toast.makeText(this, "Конфиг '${destFile.name}' добавлен", Toast.LENGTH_SHORT).show()
             populateProfiles()
 
         } catch (e: Exception) {
             Toast.makeText(this, "Ошибка импорта: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun handleExternalConfigIntent(sourceIntent: Intent?) {
+        val uri = when (sourceIntent?.action) {
+            Intent.ACTION_VIEW -> sourceIntent.data
+            Intent.ACTION_SEND -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    sourceIntent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    sourceIntent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                }
+            }
+            else -> null
+        } ?: return
+
+        handleConfigImport(uri)
+        binding.bottomNavigation.selectedItemId = R.id.nav_profiles
+    }
+
+    private fun normalizeConfigFileName(rawName: String?): String {
+        val cleanName = rawName
+            ?.substringAfterLast('/')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: "config.json"
+
+        val safeName = cleanName.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        return if (safeName.endsWith(".json", ignoreCase = true)) {
+            safeName
+        } else {
+            "$safeName.json"
+        }
+    }
+
+    private fun nextAvailableConfigFile(configsDir: File, preferredName: String): File {
+        val baseName = if (preferredName.endsWith(".json", ignoreCase = true)) {
+            preferredName.dropLast(5)
+        } else {
+            preferredName
+        }
+        var candidate = File(configsDir, preferredName)
+        var index = 1
+        while (candidate.exists()) {
+            candidate = File(configsDir, "$baseName ($index).json")
+            index++
+        }
+        return candidate
+    }
+
+    private fun isJsonConfigFile(file: File): Boolean {
+        return try {
+            val value = org.json.JSONTokener(file.readText()).nextValue()
+            value is org.json.JSONObject || value is org.json.JSONArray
+        } catch (e: Exception) {
+            false
         }
     }
 
@@ -599,12 +674,13 @@ class MainActivity : AppCompatActivity() {
     private fun populateProfiles() {
         val container = binding.layoutProfilesContainer
         container.removeAllViews()
+        setupProfileDragTarget(container)
         val configsDir = File(filesDir, "configs")
         if (!configsDir.exists()) {
             configsDir.mkdirs()
         }
 
-        val files = configsDir.listFiles { _, name -> name.endsWith(".json") } ?: emptyArray()
+        val files = sortedConfigFiles(configsDir)
 
         if (files.isEmpty()) {
             val emptyText = TextView(this).apply {
@@ -622,14 +698,17 @@ class MainActivity : AppCompatActivity() {
 
         files.forEach { file ->
             val itemView = layoutInflater.inflate(R.layout.item_profile, container, false)
-            val rbSelected = itemView.findViewById<RadioButton>(R.id.rbSelected)
             val tvProfileName = itemView.findViewById<TextView>(R.id.tvProfileName)
+            val tvProfileStatus = itemView.findViewById<TextView>(R.id.tvProfileStatus)
+            val btnDrag = itemView.findViewById<View>(R.id.btnDragProfile)
+            val btnRename = itemView.findViewById<View>(R.id.btnRenameProfile)
             val btnDelete = itemView.findViewById<View>(R.id.btnDeleteProfile)
 
             val isActive = (file.name == activeName)
+            itemView.tag = file.name
             itemView.isSelected = isActive
-            rbSelected.isChecked = isActive
             tvProfileName.text = file.name
+            tvProfileStatus.visibility = if (isActive) View.VISIBLE else View.GONE
 
             val selectListener = View.OnClickListener {
                 if (isConnected) {
@@ -639,9 +718,21 @@ class MainActivity : AppCompatActivity() {
                     populateProfiles()
                 }
             }
-            rbSelected.setOnClickListener(selectListener)
             tvProfileName.setOnClickListener(selectListener)
             itemView.setOnClickListener(selectListener)
+
+            btnDrag.setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    startProfileDrag(itemView)
+                    true
+                } else {
+                    false
+                }
+            }
+
+            btnRename.setOnClickListener {
+                showRenameProfileDialog(file)
+            }
 
             btnDelete.setOnClickListener {
                 if (isConnected && file.name == activeName) {
@@ -650,6 +741,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "Нельзя удалить активный профиль", Toast.LENGTH_SHORT).show()
                 } else {
                     file.delete()
+                    removeProfileFromOrder(file.name)
                     Toast.makeText(this@MainActivity, "Профиль удален", Toast.LENGTH_SHORT).show()
                     populateProfiles()
                 }
@@ -657,6 +749,203 @@ class MainActivity : AppCompatActivity() {
 
             container.addView(itemView)
         }
+    }
+
+    private fun sortedConfigFiles(configsDir: File): List<File> {
+        val files = configsDir.listFiles { _, name -> name.endsWith(".json") }?.toList() ?: emptyList()
+        val order = getProfileOrder().filter { orderedName -> files.any { it.name == orderedName } }
+        val knownNames = order.toSet()
+        val newNames = files
+            .map { it.name }
+            .filterNot { it in knownNames }
+            .sorted()
+
+        val names = order + newNames
+        if (names != getProfileOrder()) {
+            saveProfileOrder(names)
+        }
+        return names.mapNotNull { name -> files.firstOrNull { it.name == name } }
+    }
+
+    private fun setupProfileDragTarget(container: LinearLayout) {
+        container.setOnDragListener { _, event ->
+            val dragged = draggedProfileView ?: return@setOnDragListener true
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED -> {
+                    dragged.alpha = 0.45f
+                    true
+                }
+                DragEvent.ACTION_DRAG_LOCATION -> {
+                    moveDraggedProfile(container, dragged, event.y)
+                    true
+                }
+                DragEvent.ACTION_DROP, DragEvent.ACTION_DRAG_ENDED -> {
+                    dragged.alpha = 1f
+                    saveCurrentProfileOrder()
+                    draggedProfileView = null
+                    true
+                }
+                else -> true
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun startProfileDrag(itemView: View) {
+        draggedProfileView = itemView
+        val shadow = View.DragShadowBuilder(itemView)
+        val dragData = ClipData.newPlainText("profile", itemView.tag as? String ?: "")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            itemView.startDragAndDrop(dragData, shadow, itemView, 0)
+        } else {
+            itemView.startDrag(dragData, shadow, itemView, 0)
+        }
+    }
+
+    private fun moveDraggedProfile(container: LinearLayout, dragged: View, y: Float) {
+        val currentIndex = container.indexOfChild(dragged)
+        if (currentIndex == -1) return
+
+        var targetIndex = container.childCount - 1
+        for (i in 0 until container.childCount) {
+            val child = container.getChildAt(i)
+            if (child == dragged) continue
+            val childMid = child.top + child.height / 2f
+            if (y < childMid) {
+                targetIndex = i
+                break
+            }
+        }
+
+        if (targetIndex != currentIndex) {
+            container.removeView(dragged)
+            val boundedIndex = targetIndex.coerceIn(0, container.childCount)
+            container.addView(dragged, boundedIndex)
+        }
+    }
+
+    private fun showRenameProfileDialog(file: File) {
+        if (isConnected && file.name == getActiveConfigName()) {
+            Toast.makeText(this, "Сначала отключите VPN", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_rename_profile, null)
+        val inputLayout = dialogView.findViewById<TextInputLayout>(R.id.tilProfileName)
+        val input = dialogView.findViewById<TextInputEditText>(R.id.etProfileName).apply {
+            setText(file.name.removeSuffix(".json"))
+            setSelectAllOnFocus(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+        }
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Переименовать профиль")
+            .setView(dialogView)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить", null)
+            .show()
+
+        input.requestFocus()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            inputLayout.error = null
+            val error = validateProfileName(file, input.text.toString())
+            if (error != null) {
+                inputLayout.error = error
+                return@setOnClickListener
+            }
+            if (renameProfile(file, input.text.toString())) {
+                dialog.dismiss()
+            }
+        }
+    }
+
+    private fun validateProfileName(file: File, rawName: String): String? {
+        val cleanBaseName = sanitizeProfileBaseName(rawName)
+        if (cleanBaseName.isBlank()) {
+            return "Введите название профиля"
+        }
+
+        val newName = "$cleanBaseName.json"
+        if (newName == file.name) {
+            return null
+        }
+
+        val parentDir = file.parentFile ?: return "Не удалось открыть папку профилей"
+        if (File(parentDir, newName).exists()) {
+            return "Профиль с таким названием уже есть"
+        }
+
+        return null
+    }
+
+    private fun renameProfile(file: File, rawName: String): Boolean {
+        val cleanBaseName = sanitizeProfileBaseName(rawName)
+        if (cleanBaseName.isBlank()) return false
+
+        val newName = "$cleanBaseName.json"
+        if (newName == file.name) return true
+
+        val parentDir = file.parentFile ?: return false
+        val newFile = File(parentDir, newName)
+        if (newFile.exists()) return false
+
+        return if (file.renameTo(newFile)) {
+            replaceProfileInOrder(file.name, newName)
+            if (file.name == getActiveConfigName()) {
+                setActiveConfig(newName)
+            }
+            Toast.makeText(this, "Профиль переименован", Toast.LENGTH_SHORT).show()
+            populateProfiles()
+            true
+        } else {
+            Toast.makeText(this, "Не удалось переименовать профиль", Toast.LENGTH_SHORT).show()
+            false
+        }
+    }
+
+    private fun sanitizeProfileBaseName(rawName: String): String {
+        return rawName
+            .trim()
+            .removeSuffix(".json")
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    }
+
+    private fun getProfileOrder(): List<String> {
+        val order = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .getString("profile_order", "")
+            .orEmpty()
+        return order.split("|").filter { it.isNotBlank() }
+    }
+
+    private fun saveProfileOrder(names: List<String>) {
+        getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .edit()
+            .putString("profile_order", names.joinToString("|"))
+            .apply()
+    }
+
+    private fun saveCurrentProfileOrder() {
+        val container = binding.layoutProfilesContainer
+        val names = (0 until container.childCount).mapNotNull { index ->
+            container.getChildAt(index).tag as? String
+        }
+        saveProfileOrder(names)
+    }
+
+    private fun appendProfileOrder(fileName: String) {
+        val order = getProfileOrder()
+        if (fileName !in order) {
+            saveProfileOrder(order + fileName)
+        }
+    }
+
+    private fun removeProfileFromOrder(fileName: String) {
+        saveProfileOrder(getProfileOrder().filterNot { it == fileName })
+    }
+
+    private fun replaceProfileInOrder(oldName: String, newName: String) {
+        val updated = getProfileOrder().map { if (it == oldName) newName else it }
+        saveProfileOrder(updated)
     }
 
     private fun getActiveConfigName(): String? {

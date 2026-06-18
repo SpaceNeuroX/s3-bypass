@@ -1,7 +1,7 @@
 <resources>
     <style name="Theme.Fedarisha" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#00D4FF</item>
-        <item name="colorPrimaryVariant">#6C5CE7</item>
+        <item name="colorPrimary">@color/accent_cyan</item>
+        <item name="colorPrimaryVariant">@color/accent_purple_light</item>
         <item name="colorOnPrimary">#FFFFFF</item>
         <item name="android:windowBackground">@color/bg_primary</item>
         <item name="android:statusBarColor">@color/bg_primary</item>
