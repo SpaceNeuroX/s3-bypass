@@ -9,9 +9,9 @@
 </p>
 
 <p align="center">
-  <img src="media/screenshot.png" alt="S3 Bypass App Screenshot 1" width="280" />
+  <img src="media/screenshot.jpg" alt="S3 Bypass App Screenshot 1" width="280" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="media/screenshot2.png" alt="S3 Bypass App Screenshot 2" width="280" />
+  <img src="media/screenshot2.jpg" alt="S3 Bypass App Screenshot 2" width="280" />
 </p>
 
 ## 📖 Технология
