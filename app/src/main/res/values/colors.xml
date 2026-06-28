@@ -27,4 +27,10 @@
     <color name="status_connected">#C4C0FF</color>
     <color name="status_connecting">#D6D4FF</color>
     <color name="status_disconnected">#565370</color>
+
+    <!-- Logs -->
+    <color name="log_success">#C4C0FF</color>
+    <color name="log_info">#9693B0</color>
+    <color name="log_warning">#E8C97A</color>
+    <color name="log_error">#FF7B9C</color>
 </resources>

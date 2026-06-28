@@ -17,4 +17,10 @@
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="colorPrimary">@color/accent_cyan</item>
     </style>
+
+    <style name="Theme.Fedarisha.FullScreenDialog" parent="Theme.Fedarisha">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowFullscreen">false</item>
+    </style>
 </resources>

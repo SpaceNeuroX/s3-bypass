@@ -1,0 +1,349 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_primary"
+    android:padding="20dp">
+
+    <!-- Header Section -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvDeployTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Развертывание"
+            android:textColor="@color/text_primary"
+            android:textSize="20sp"
+            android:fontFamily="sans-serif-medium"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true" />
+
+        <ImageView
+            android:id="@+id/btnDeployClose"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="6dp"
+            app:tint="@color/text_muted"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:importantForAccessibility="no" />
+    </RelativeLayout>
+
+    <!-- Step Subtitle -->
+    <TextView
+        android:id="@+id/tvDeployStepSub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Шаг 1 из 3: Настройка VPS (SSH)"
+        android:textColor="@color/accent_cyan"
+        android:textSize="12sp"
+        android:letterSpacing="0.05"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="18dp" />
+
+    <!-- Main Content Frame -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginBottom="20dp">
+
+        <!-- STEP 1: VPS SSH Form -->
+        <ScrollView
+            android:id="@+id/layoutStep1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Введите параметры доступа к вашему чистому серверу VPS (Ubuntu/Debian):"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- Server IP -->
+                <EditText
+                    android:id="@+id/etVpsIp"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="IP-адрес сервера (например, 185.12.34.56)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- SSH Port -->
+                <EditText
+                    android:id="@+id/etVpsPort"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Порт SSH (по умолчанию 22)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="number"
+                    android:maxLines="1"
+                    android:text="22"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- SSH User -->
+                <EditText
+                    android:id="@+id/etVpsUser"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Имя пользователя (обычно root)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:text="root"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- SSH Password -->
+                <EditText
+                    android:id="@+id/etVpsPassword"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Пароль пользователя root"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="textPassword"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- STEP 2: S3 Form -->
+        <ScrollView
+            android:id="@+id/layoutStep2"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Введите параметры подключения к S3 бакету (например, Yandex Cloud, VK Cloud и др.):"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="16dp" />
+
+                <!-- S3 Endpoint -->
+                <EditText
+                    android:id="@+id/etS3Endpoint"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="S3 Endpoint (например, https://s3.yandexcloud.net)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="textUri"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- S3 Region -->
+                <EditText
+                    android:id="@+id/etS3Region"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Регион S3 (например, ru-central1)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- S3 Bucket -->
+                <EditText
+                    android:id="@+id/etS3Bucket"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="Имя бакета (например, my-vpn-bucket)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- S3 Access Key ID -->
+                <EditText
+                    android:id="@+id/etS3AccessKey"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="S3 Access Key ID"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- S3 Secret Access Key -->
+                <EditText
+                    android:id="@+id/etS3SecretKey"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="S3 Secret Access Key"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+                <!-- Client ID -->
+                <EditText
+                    android:id="@+id/etClientId"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingHorizontal="16dp"
+                    android:hint="ID клиента (по умолчанию 4)"
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="number"
+                    android:maxLines="1"
+                    android:text="4"
+                    android:layout_marginBottom="12dp"
+                    android:importantForAutofill="no"/>
+
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- STEP 3: Console Output -->
+        <LinearLayout
+            android:id="@+id/layoutStep3"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <ProgressBar
+                android:id="@+id/pbDeployProgress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:indeterminate="true"
+                android:indeterminateTint="@color/accent_cyan"
+                android:layout_marginBottom="16dp" />
+
+            <ScrollView
+                android:id="@+id/scrollConsole"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="@drawable/console_bg"
+                android:padding="12dp"
+                android:fillViewport="true">
+
+                <TextView
+                    android:id="@+id/tvConsoleLog"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="#A0FF90"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:text="Подготовка к установке..." />
+            </ScrollView>
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Bottom Navigation Controls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:layout_marginTop="8dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDeployBack"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="Назад"
+            android:textColor="@color/text_secondary"
+            android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
+            app:backgroundTint="@color/bg_surface"
+            app:strokeColor="@color/border_subtle"
+            app:strokeWidth="1dp"
+            app:cornerRadius="16dp"
+            android:layout_marginEnd="12dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnDeployNext"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:text="Далее"
+            android:textColor="@color/accent_cyan"
+            android:textAllCaps="false"
+            android:fontFamily="sans-serif-medium"
+            app:backgroundTint="@color/accent_cyan_dim"
+            app:strokeColor="@color/accent_purple_dim"
+            app:strokeWidth="1dp"
+            app:cornerRadius="16dp" />
+    </LinearLayout>
+
+</LinearLayout>

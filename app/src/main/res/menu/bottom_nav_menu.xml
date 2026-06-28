@@ -11,6 +11,11 @@
         android:title="Профили" />
 
     <item
+        android:id="@+id/nav_apps"
+        android:icon="@drawable/ic_nav_apps"
+        android:title="Туннель" />
+
+    <item
         android:id="@+id/nav_logs"
         android:icon="@drawable/ic_nav_logs"
         android:title="Логи" />

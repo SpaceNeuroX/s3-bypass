@@ -24,108 +24,188 @@
             android:scrollbars="none"
             android:overScrollMode="never">
 
-            <androidx.constraintlayout.widget.ConstraintLayout
+            <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:paddingBottom="32dp">
 
-                <!-- Background glow -->
-                <View
-                    android:id="@+id/glowView"
-                    android:layout_width="240dp"
-                    android:layout_height="240dp"
-                    android:background="@drawable/glow_circle"
-                    app:layout_constraintTop_toTopOf="@id/btnPower"
-                    app:layout_constraintBottom_toBottomOf="@id/btnPower"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    android:alpha="0.07" />
-
-                <!-- App title -->
                 <TextView
                     android:id="@+id/tvAppName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
                     android:text="S3"
                     android:textColor="@color/text_primary"
                     android:textSize="28sp"
                     android:letterSpacing="0.4"
                     android:fontFamily="sans-serif-medium"
-                    android:textStyle="bold"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toTopOf="parent"
-                    android:layout_marginTop="32dp" />
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
                     android:text="BYPASS"
                     android:textColor="@color/accent_cyan"
                     android:textSize="12sp"
                     android:letterSpacing="0.6"
-                    android:fontFamily="sans-serif-light"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvAppName"
-                    android:layout_marginTop="2dp" />
+                    android:fontFamily="sans-serif-light" />
 
-                <!-- Main power button -->
-                <com.darkbit.bypass.PowerButton
-                    android:id="@+id/btnPower"
-                    android:layout_width="200dp"
-                    android:layout_height="200dp"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/tvSubtitle"
-                    app:layout_constraintBottom_toTopOf="@id/tvStatus"
-                    app:layout_constraintVertical_bias="0.45"
-                    android:layout_marginTop="24dp"
-                    android:layout_marginBottom="16dp" />
+                <RadioGroup
+                    android:id="@+id/rgConnectionMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginHorizontal="28dp"
+                    android:layout_marginTop="36dp"
+                    android:background="@drawable/bg_log_filter_group"
+                    android:gravity="center"
+                    android:orientation="horizontal"
+                    android:padding="4dp">
+
+                    <RadioButton
+                        android:id="@+id/rbModeVpn"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_log_filter_option"
+                        android:button="@null"
+                        android:checked="true"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:text="VPN"
+                        android:textColor="@color/log_filter_text"
+                        android:textSize="13sp" />
+
+                    <RadioButton
+                        android:id="@+id/rbModeProxy"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_log_filter_option"
+                        android:button="@null"
+                        android:fontFamily="sans-serif-medium"
+                        android:gravity="center"
+                        android:minHeight="0dp"
+                        android:paddingHorizontal="12dp"
+                        android:text="Прокси"
+                        android:textColor="@color/log_filter_text"
+                        android:textSize="13sp" />
+                </RadioGroup>
+
+                <LinearLayout
+                    android:id="@+id/layoutProxySettings"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="28dp"
+                    android:layout_marginTop="14dp"
+                    android:background="@drawable/tg_link_bg"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp"
+                    android:visibility="gone">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:fontFamily="sans-serif"
+                            android:text="Локальный адрес"
+                            android:textColor="@color/text_muted"
+                            android:textSize="11sp" />
+
+                        <TextView
+                            android:id="@+id/tvProxyPreview"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:fontFamily="monospace"
+                            android:text="127.0.0.1:10808"
+                            android:textColor="@color/accent_cyan"
+                            android:textSize="15sp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:fontFamily="sans-serif"
+                            android:text="Нажмите, чтобы изменить порт"
+                            android:textColor="@color/text_muted"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:contentDescription="Изменить порт"
+                        android:src="@drawable/ic_edit"
+                        app:tint="@color/text_muted" />
+                </LinearLayout>
+
+                <FrameLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="52dp">
+
+                    <View
+                        android:id="@+id/glowView"
+                        android:layout_width="220dp"
+                        android:layout_height="220dp"
+                        android:layout_gravity="center"
+                        android:alpha="0.07"
+                        android:background="@drawable/glow_circle" />
+
+                    <com.darkbit.bypass.PowerButton
+                        android:id="@+id/btnPower"
+                        android:layout_width="188dp"
+                        android:layout_height="188dp"
+                        android:layout_gravity="center" />
+                </FrameLayout>
 
                 <TextView
                     android:id="@+id/tvStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="20dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.25"
                     android:text="ОТКЛЮЧЕНО"
                     android:textColor="@color/status_disconnected"
                     android:textSize="15sp"
-                    android:letterSpacing="0.25"
-                    android:fontFamily="sans-serif-medium"
-                    android:visibility="gone"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintBottom_toTopOf="@id/tvTimer"
-                    android:layout_marginBottom="8dp" />
+                    android:visibility="gone" />
 
-                <!-- Connection timer -->
                 <TextView
                     android:id="@+id/tvTimer"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:fontFamily="monospace"
+                    android:letterSpacing="0.15"
                     android:text="00:00:00"
                     android:textColor="@color/text_muted"
                     android:textSize="13sp"
-                    android:fontFamily="monospace"
-                    android:letterSpacing="0.15"
-                    android:visibility="gone"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintBottom_toTopOf="@id/speedSection"
-                    android:layout_marginBottom="20dp" />
+                    android:visibility="gone" />
 
-                <!-- Speed section -->
                 <LinearLayout
                     android:id="@+id/speedSection"
-                    android:layout_width="0dp"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="28dp"
+                    android:layout_marginTop="20dp"
                     android:orientation="horizontal"
-                    android:visibility="gone"
-                    android:paddingHorizontal="28dp"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintBottom_toTopOf="@id/tvConfigName"
-                    android:layout_marginBottom="20dp">
+                    android:visibility="gone">
 
                     <!-- Download speed card -->
                     <LinearLayout
@@ -206,23 +286,62 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- Active Config -->
+                <LinearLayout
+                    android:id="@+id/layoutProxyInfo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="28dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/tg_link_bg"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:orientation="vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="14dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif"
+                        android:text="Локальный SOCKS-прокси"
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/tvProxyAddress"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:fontFamily="monospace"
+                        android:text="127.0.0.1:10808"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="18sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingMultiplier="1.2"
+                        android:text="Нажмите, чтобы скопировать адрес. Укажите его в настройках приложения."
+                        android:textColor="@color/text_muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
                 <TextView
                     android:id="@+id/tvConfigName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="28dp"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="1"
                     android:text="Нет конфига"
                     android:textColor="@color/text_secondary"
-                    android:textSize="14sp"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:fontFamily="sans-serif"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    android:layout_marginBottom="32dp"
-                    app:layout_constraintBottom_toBottomOf="parent" />
+                    android:textSize="14sp" />
 
-            </androidx.constraintlayout.widget.ConstraintLayout>
+            </LinearLayout>
         </ScrollView>
 
         <!-- 2. PROFILES TAB -->
@@ -298,10 +417,274 @@
                         android:letterSpacing="0.05" />
                 </LinearLayout>
 
+                <LinearLayout
+                    android:id="@+id/btnDeployServer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:background="@drawable/import_button_bg"
+                    android:paddingVertical="16dp"
+                    android:layout_marginTop="14dp"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:src="@drawable/ic_server"
+                        android:layout_marginEnd="10dp"
+                        app:tint="@color/accent_cyan"
+                        android:importantForAccessibility="no" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="РАЗВЕРНУТЬ VPS СЕРВЕР"
+                        android:textColor="@color/accent_cyan"
+                        android:textSize="14sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:letterSpacing="0.05" />
+                </LinearLayout>
+
             </LinearLayout>
         </ScrollView>
 
-        <!-- 3. LOGS TAB -->
+        <!-- 3. SPLIT TUNNELING TAB -->
+        <LinearLayout
+            android:id="@+id/layout_apps"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:paddingTop="24dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Туннелирование приложений"
+                android:textColor="@color/text_primary"
+                android:textSize="20sp"
+                android:fontFamily="sans-serif-medium"
+                android:gravity="center"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Settings Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/profile_item_bg"
+                android:padding="16dp"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="12dp">
+
+                <!-- Enabled Switch -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+                    
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Раздельный туннель"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:fontFamily="sans-serif-medium"/>
+                        
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/swSplitTunnelEnabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:thumbTint="@color/accent_cyan"
+                        app:trackTint="@color/accent_purple_dim" />
+                </LinearLayout>
+
+                <View
+                    android:id="@+id/dividerSplitTunnel"
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/border_subtle"
+                    android:layout_marginVertical="12dp"/>
+
+                <!-- Mode Selector Group -->
+                <RadioGroup
+                    android:id="@+id/rgSplitTunnelMode"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:orientation="horizontal"
+                    android:background="@drawable/bg_log_filter_group"
+                    android:padding="3dp">
+                    
+                    <RadioButton
+                        android:id="@+id/rbSplitTunnelBypass"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_log_filter_option"
+                        android:button="@null"
+                        android:gravity="center"
+                        android:text="Исключить"
+                        android:textColor="@color/log_filter_text"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:checked="true"/>
+                    
+                    <RadioButton
+                        android:id="@+id/rbSplitTunnelOnly"
+                        android:layout_width="0dp"
+                        android:layout_height="match_parent"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_log_filter_option"
+                        android:button="@null"
+                        android:gravity="center"
+                        android:text="Только выбранные"
+                        android:textColor="@color/log_filter_text"
+                        android:textSize="12sp"
+                        android:fontFamily="sans-serif-medium"/>
+                </RadioGroup>
+            </LinearLayout>
+
+            <!-- Search Bar -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="12dp">
+
+                <EditText
+                    android:id="@+id/etAppSearch"
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:background="@drawable/profile_item_bg"
+                    android:paddingStart="40dp"
+                    android:paddingEnd="16dp"
+                    android:hint="Поиск приложений..."
+                    android:textColorHint="@color/text_muted"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:fontFamily="sans-serif"
+                    android:textCursorDrawable="@null"
+                    android:importantForAutofill="no"/>
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginStart="14dp"
+                    android:src="@android:drawable/ic_menu_search"
+                    app:tint="@color/text_secondary"
+                    android:importantForAccessibility="no"/>
+            </FrameLayout>
+
+            <!-- Filters Group -->
+            <RadioGroup
+                android:id="@+id/rgAppsFilter"
+                android:layout_width="match_parent"
+                android:layout_height="40dp"
+                android:orientation="horizontal"
+                android:layout_marginHorizontal="16dp"
+                android:background="@drawable/bg_log_filter_group"
+                android:padding="3dp"
+                android:layout_marginBottom="12dp">
+                
+                <RadioButton
+                    android:id="@+id/rbAppsAll"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.0"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:text="Все"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:checked="true"/>
+                    
+                <RadioButton
+                    android:id="@+id/rbAppsUser"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.2"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:text="Пользов."
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"/>
+                    
+                <RadioButton
+                    android:id="@+id/rbAppsSystem"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.2"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:text="Системные"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"/>
+                    
+                <RadioButton
+                    android:id="@+id/rbAppsSelected"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.2"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:text="Выбранные"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="12sp"
+                    android:fontFamily="sans-serif-medium"/>
+            </RadioGroup>
+
+            <!-- RecyclerView container -->
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="8dp">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvAppsList"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clipToPadding="false"
+                    android:paddingBottom="16dp"
+                    android:scrollbars="none" />
+
+                <ProgressBar
+                    android:id="@+id/pbAppsLoading"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_gravity="center"
+                    android:indeterminateTint="@color/accent_cyan"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/tvNoAppsFound"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center"
+                    android:text="Приложения не найдены"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:visibility="gone"/>
+            </FrameLayout>
+        </LinearLayout>
+
+        <!-- 4. LOGS TAB -->
         <LinearLayout
             android:id="@+id/layout_logs"
             android:layout_width="match_parent"
@@ -318,18 +701,73 @@
                 android:textSize="20sp"
                 android:fontFamily="sans-serif-medium"
                 android:gravity="center"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/tvLogsSubtitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Понятные сообщения о работе VPN"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif"
+                android:gravity="center"
+                android:layout_marginHorizontal="16dp"
+                android:layout_marginBottom="14dp"/>
 
             <RadioGroup
-                android:id="@+id/rgLogFilters"
-                android:layout_width="240dp"
-                android:layout_height="48dp"
+                android:id="@+id/rgLogMode"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
                 android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_gravity="center_horizontal"
+                android:layout_marginHorizontal="16dp"
                 android:background="@drawable/bg_log_filter_group"
                 android:padding="4dp"
                 android:layout_marginBottom="12dp">
+
+                <RadioButton
+                    android:id="@+id/rbLogSimple"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:minHeight="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="Простой"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:checked="true"/>
+
+                <RadioButton
+                    android:id="@+id/rbLogDetailed"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_log_filter_option"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:minHeight="0dp"
+                    android:paddingHorizontal="12dp"
+                    android:text="Подробный"
+                    android:textColor="@color/log_filter_text"
+                    android:textSize="13sp"
+                    android:fontFamily="sans-serif-medium"/>
+            </RadioGroup>
+
+            <RadioGroup
+                android:id="@+id/rgLogFilters"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginHorizontal="16dp"
+                android:background="@drawable/bg_log_filter_group"
+                android:padding="4dp"
+                android:layout_marginBottom="14dp">
                 
                 <RadioButton
                     android:id="@+id/rbLogAll"
@@ -370,82 +808,103 @@
                 android:orientation="horizontal"
                 android:gravity="center"
                 android:layout_marginHorizontal="16dp"
-                android:layout_marginTop="2dp"
-                android:layout_marginBottom="10dp">
-                
+                android:layout_marginBottom="12dp">
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogClear"
                     android:layout_width="0dp"
-                    android:layout_height="42dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="8dp"
                     android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.04"
                     android:minHeight="0dp"
                     android:minWidth="0dp"
-                    android:paddingHorizontal="12dp"
+                    android:paddingHorizontal="16dp"
                     android:text="Очистить"
                     android:textAllCaps="false"
                     android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
+                    android:textSize="14sp"
                     app:backgroundTint="@color/bg_surface"
                     app:cornerRadius="16dp"
-                    app:icon="@drawable/ic_trash"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp"
-                    app:iconSize="18dp"
-                    app:iconTint="@color/text_secondary"
                     app:rippleColor="#18C4C0FF"
                     app:strokeColor="@color/border_subtle"
                     app:strokeWidth="1dp"/>
-                
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnLogCopy"
                     android:layout_width="0dp"
-                    android:layout_height="42dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="8dp"
                     android:fontFamily="sans-serif-medium"
-                    android:letterSpacing="0.04"
                     android:minHeight="0dp"
                     android:minWidth="0dp"
-                    android:paddingHorizontal="12dp"
+                    android:paddingHorizontal="16dp"
                     android:text="Копировать"
                     android:textAllCaps="false"
                     android:textColor="@color/accent_cyan"
-                    android:textSize="13sp"
+                    android:textSize="14sp"
                     app:backgroundTint="@color/accent_cyan_dim"
                     app:cornerRadius="16dp"
-                    app:icon="@drawable/ic_copy"
-                    app:iconGravity="textStart"
-                    app:iconPadding="8dp"
-                    app:iconSize="18dp"
-                    app:iconTint="@color/accent_cyan"
                     app:rippleColor="#24C4C0FF"
                     app:strokeColor="@color/accent_purple_dim"
                     app:strokeWidth="1dp"/>
             </LinearLayout>
 
-            <ScrollView
-                android:id="@+id/scrollLogs"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:background="@drawable/console_bg"
-                android:padding="14dp"
                 android:layout_marginHorizontal="16dp"
-                android:layout_marginBottom="16dp"
-                android:fillViewport="true">
-                
-                <TextView
-                    android:id="@+id/tvLogContent"
+                android:layout_marginBottom="16dp">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvLogsSimple"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Загрузка логов..."
-                    android:textColor="#A0A0A0"
-                    android:textSize="11sp"
-                    android:fontFamily="monospace" />
-            </ScrollView>
+                    android:layout_height="match_parent"
+                    android:background="@drawable/console_bg"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="8dp"
+                    android:scrollbars="none"
+                    android:fadeScrollbars="true" />
+
+                <ScrollView
+                    android:id="@+id/scrollLogs"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/console_bg"
+                    android:fillViewport="true"
+                    android:overScrollMode="never"
+                    android:padding="14dp"
+                    android:scrollbars="none"
+                    android:fadeScrollbars="true"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvLogContent"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Загрузка логов..."
+                        android:textColor="#A0A0A0"
+                        android:textSize="11sp"
+                        android:fontFamily="monospace"
+                        android:textIsSelectable="true"
+                        android:lineSpacingMultiplier="1.2" />
+                </ScrollView>
+
+                <TextView
+                    android:id="@+id/tvLogsEmpty"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:gravity="center"
+                    android:text="Событий пока нет"
+                    android:textColor="@color/text_muted"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
 
         <!-- 3. ABOUT TAB -->

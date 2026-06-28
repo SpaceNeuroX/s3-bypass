@@ -29,6 +29,11 @@ class XrayService : VpnService() {
         const val CHANNEL_ID = "darkbit_channel"
         const val ACTION_START = "com.darkbit.bypass.START"
         const val ACTION_STOP = "com.darkbit.bypass.STOP"
+        const val EXTRA_CONNECTION_MODE = "connection_mode"
+        const val MODE_VPN = "vpn"
+        const val MODE_PROXY = "proxy"
+        const val PREF_PROXY_PORT = "proxy_port"
+        const val DEFAULT_PROXY_PORT = 10808
     }
 
     private val binder = LocalBinder()
@@ -44,6 +49,9 @@ class XrayService : VpnService() {
     private var lastTxBytes = 0L
     private var speedJob: Job? = null
     private var logcatProcess: Process? = null
+    private var isProxyMode = false
+    var proxyEndpoint: String? = null
+        private set
 
     inner class LocalBinder : Binder() {
         fun getService(): XrayService = this@XrayService
@@ -67,6 +75,7 @@ class XrayService : VpnService() {
         when (intent?.action) {
             ACTION_START -> {
                 val configPath = intent.getStringExtra("config_path") ?: return START_NOT_STICKY
+                isProxyMode = intent.getStringExtra(EXTRA_CONNECTION_MODE) == MODE_PROXY
                 startForeground(NOTIFICATION_ID, buildNotification())
                 startXray(configPath)
             }
@@ -95,7 +104,10 @@ class XrayService : VpnService() {
                     Runtime.getRuntime().exec("logcat -c").waitFor() // Clear logcat buffer
                 } catch (e: Exception) {}
 
-                writeLog("Starting connection sequence via AAR...")
+                writeLog(
+                    if (isProxyMode) "Starting proxy mode via AAR..."
+                    else "Starting connection sequence via AAR..."
+                )
                 
                 // Start logcat capturing for GoLog
                 serviceScope.launch(Dispatchers.IO) {
@@ -104,7 +116,6 @@ class XrayService : VpnService() {
                         logcatProcess?.inputStream?.bufferedReader()?.use { reader ->
                             var line: String? = null
                             while (isActive && reader.readLine().also { line = it } != null) {
-                                // Skip empty lines or duplicates if necessary, but just writing is fine
                                 writeLog("logcat: $line")
                             }
                         }
@@ -113,44 +124,83 @@ class XrayService : VpnService() {
                     }
                 }
 
-                // Build VPN tunnel
-                writeLog("Establishing VPN Tunnel interface...")
-                val builder = Builder()
-                    .addAddress("172.19.0.1", 30)
-                    .addAddress("fd00::1", 126)
-                    .addDnsServer("8.8.8.8")
-                    .addDnsServer("2001:4860:4860::8888")
-                    .addRoute("0.0.0.0", 0)
-                    .addRoute("::", 0)
-                    .setSession("Darkbit Bypass")
-                    .setMtu(1500)
-                
-                try {
-                    builder.addDisallowedApplication(packageName)
-                } catch (e: Exception) {
-                    writeLog("Warning: Failed to exclude app from VPN: ${e.message}")
-                }
+                var tunFd = 0
 
-                vpnInterface?.close()
-                vpnInterface = builder.establish()
-
-                if (vpnInterface != null) {
-                    try {
-                        Os.dup2(vpnInterface!!.fileDescriptor, 0)
-                        writeLog("VPN Tunnel successfully configured and bound to system fd 0")
-                    } catch (e: Exception) {
-                        writeLog("Error: Failed to dup2 tun fd: ${e.message}")
-                    }
+                if (isProxyMode) {
+                    writeLog("Starting local SOCKS proxy (no VPN tunnel)...")
                 } else {
-                    writeLog("Error: Failed to establish VPN interface")
-                    stopSelf()
-                    return@launch
+                    writeLog("Establishing VPN Tunnel interface...")
+                    val builder = Builder()
+                        .addAddress("172.19.0.1", 30)
+                        .addAddress("fd00::1", 126)
+                        .addDnsServer("8.8.8.8")
+                        .addDnsServer("2001:4860:4860::8888")
+                        .addRoute("0.0.0.0", 0)
+                        .addRoute("::", 0)
+                        .setSession("Darkbit Bypass")
+                        .setMtu(1500)
+
+                    val prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+                    val splitEnabled = prefs.getBoolean("split_tunneling_enabled", false)
+                    val splitMode = prefs.getString("split_tunneling_mode", "disallow") ?: "disallow"
+                    val splitPackages = prefs.getStringSet("split_tunneling_packages", null) ?: emptySet()
+
+                    if (splitEnabled && splitPackages.isNotEmpty()) {
+                        if (splitMode == "allow") {
+                            for (pkg in splitPackages) {
+                                try {
+                                    if (pkg != packageName) {
+                                        builder.addAllowedApplication(pkg)
+                                    }
+                                } catch (e: Exception) {
+                                    writeLog("Warning: Failed to add allowed application $pkg: ${e.message}")
+                                }
+                            }
+                        } else {
+                            try {
+                                builder.addDisallowedApplication(packageName)
+                            } catch (e: Exception) {
+                                writeLog("Warning: Failed to exclude app from VPN: ${e.message}")
+                            }
+                            for (pkg in splitPackages) {
+                                try {
+                                    if (pkg != packageName) {
+                                        builder.addDisallowedApplication(pkg)
+                                    }
+                                } catch (e: Exception) {
+                                    writeLog("Warning: Failed to exclude application $pkg: ${e.message}")
+                                }
+                            }
+                        }
+                    } else {
+                        try {
+                            builder.addDisallowedApplication(packageName)
+                        } catch (e: Exception) {
+                            writeLog("Warning: Failed to exclude app from VPN: ${e.message}")
+                        }
+                    }
+
+                    vpnInterface?.close()
+                    vpnInterface = builder.establish()
+
+                    if (vpnInterface != null) {
+                        try {
+                            Os.dup2(vpnInterface!!.fileDescriptor, 0)
+                            tunFd = vpnInterface!!.fd
+                            writeLog("VPN Tunnel successfully configured and bound to system fd 0")
+                        } catch (e: Exception) {
+                            writeLog("Error: Failed to dup2 tun fd: ${e.message}")
+                        }
+                    } else {
+                        writeLog("Error: Failed to establish VPN interface")
+                        stopSelf()
+                        return@launch
+                    }
                 }
 
                 writeLog("Invoking Xray core from AAR library...")
                 
                 try {
-                    // Используем нативный API libv2ray из AndroidLibXrayLite
                     val clazz = Class.forName("libv2ray.Libv2ray")
                     clazz.getMethod("initCoreEnv", String::class.java, String::class.java)
                          .invoke(null, filesDir.absolutePath, "")
@@ -174,9 +224,13 @@ class XrayService : VpnService() {
                     val startLoopMethod = xrayController!!.javaClass.getMethod("startLoop", String::class.java, Int::class.java)
                     
                     val configContent = File(configPath).readText()
-                    val jsonConfig = org.json.JSONObject(configContent)
+                    val prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+                    val proxyPort = prefs.getInt(PREF_PROXY_PORT, DEFAULT_PROXY_PORT)
+                    val (preparedConfig, socksEndpoint) = ConfigHelper.prepareForMode(
+                        configContent, isProxyMode, proxyPort
+                    )
+                    val jsonConfig = org.json.JSONObject(preparedConfig)
                     
-                    // Устанавливаем пути для логов Xray (хотя GoLog пишется в logcat)
                     val logFile = File(File(filesDir, "logs"), "xray.log")
                     val logObj = jsonConfig.optJSONObject("log") ?: org.json.JSONObject()
                     logObj.put("access", logFile.absolutePath)
@@ -185,10 +239,13 @@ class XrayService : VpnService() {
                     jsonConfig.put("log", logObj)
                     
                     val finalConfigContent = jsonConfig.toString()
+                    proxyEndpoint = socksEndpoint?.display()
                     
-                    // Передаем настоящий FD туннеля, чтобы Xray смог его подхватить!
-                    startLoopMethod.invoke(xrayController, finalConfigContent, vpnInterface!!.fd)
+                    startLoopMethod.invoke(xrayController, finalConfigContent, tunFd)
                     
+                    if (isProxyMode) {
+                        writeLog("Proxy listening on ${proxyEndpoint ?: "127.0.0.1:10808"}")
+                    }
                     writeLog("Successfully started Xray via libv2ray.Libv2ray!")
                 } catch (e: Exception) {
                     writeLog("Error: Failed to invoke libv2ray classes in the AAR!")
@@ -199,9 +256,10 @@ class XrayService : VpnService() {
                 connectionStartTime = System.currentTimeMillis()
                 startSpeedMonitor()
                 onStatusChanged?.invoke(true)
-                writeLog("Xray core running inside AAR!")
-
-                // Removed IP verification to prevent timeouts
+                writeLog(
+                    if (isProxyMode) "Proxy core running inside AAR!"
+                    else "Xray core running inside AAR!"
+                )
 
             } catch (e: Exception) {
                 writeLog("Error running xray from AAR: ${e.message}")
@@ -251,6 +309,8 @@ class XrayService : VpnService() {
             Log.e(TAG, "Failed to close VPN interface", e)
         }
         vpnInterface = null
+        proxyEndpoint = null
+        isProxyMode = false
 
         stopSpeedMonitor()
         connectionStartTime = 0L
@@ -309,10 +369,10 @@ class XrayService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val speedText = if (downBytes > 0 || upBytes > 0) {
-            "DL: ${formatSpeed(downBytes)}   UL: ${formatSpeed(upBytes)}"
-        } else {
-            getString(R.string.notification_text)
+        val speedText = when {
+            isProxyMode && proxyEndpoint != null -> "SOCKS: $proxyEndpoint"
+            downBytes > 0 || upBytes > 0 -> "DL: ${formatSpeed(downBytes)}   UL: ${formatSpeed(upBytes)}"
+            else -> getString(R.string.notification_text)
         }
 
         return NotificationCompat.Builder(this, CHANNEL_ID)

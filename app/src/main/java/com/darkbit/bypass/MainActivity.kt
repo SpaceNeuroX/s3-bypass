@@ -32,6 +32,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class MainActivity : AppCompatActivity() {
 
@@ -46,6 +48,14 @@ class MainActivity : AppCompatActivity() {
 
     private var logRefreshJob: Job? = null
     private var draggedProfileView: View? = null
+    private lateinit var logsAdapter: LogsAdapter
+    private var currentLogEntries: List<LogEntry> = emptyList()
+
+    // Split Tunneling variables
+    private var appsAdapter: AppsAdapter? = null
+    private val mainScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var appsLoadJob: Job? = null
+    private var cachedAppsList: List<AppInfoItem> = emptyList()
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -95,7 +105,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            startVpn()
+            startConnection()
         } else {
             Toast.makeText(this, "Необходимы права VPN", Toast.LENGTH_SHORT).show()
         }
@@ -127,8 +137,26 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnPower.onClickListener = { toggleConnection() }
 
+        setupConnectionMode()
+        setupProxySettings()
+
+        binding.layoutProxyInfo.setOnClickListener {
+            copyProxyAddress()
+        }
+
         binding.btnImportConfig.setOnClickListener {
             triggerConfigImport()
+        }
+
+        binding.btnDeployServer.setOnClickListener {
+            val dialog = DeployDialogFragment().apply {
+                onDeploymentSuccess = {
+                    runOnUiThread {
+                        populateProfiles()
+                    }
+                }
+            }
+            dialog.show(supportFragmentManager, "deploy_dialog")
         }
 
         binding.btnTelegramChannel.setOnClickListener {
@@ -145,6 +173,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_home -> {
                     binding.layoutHome.visibility = View.VISIBLE
                     binding.layoutProfiles.visibility = View.GONE
+                    binding.layoutApps.visibility = View.GONE
                     binding.layoutLogs.visibility = View.GONE
                     binding.layoutAbout.visibility = View.GONE
                     stopLogAutoRefresh()
@@ -153,15 +182,27 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_profiles -> {
                     binding.layoutHome.visibility = View.GONE
                     binding.layoutProfiles.visibility = View.VISIBLE
+                    binding.layoutApps.visibility = View.GONE
                     binding.layoutLogs.visibility = View.GONE
                     binding.layoutAbout.visibility = View.GONE
                     populateProfiles()
                     stopLogAutoRefresh()
                     true
                 }
+                R.id.nav_apps -> {
+                    binding.layoutHome.visibility = View.GONE
+                    binding.layoutProfiles.visibility = View.GONE
+                    binding.layoutApps.visibility = View.VISIBLE
+                    binding.layoutLogs.visibility = View.GONE
+                    binding.layoutAbout.visibility = View.GONE
+                    loadInstalledApps()
+                    stopLogAutoRefresh()
+                    true
+                }
                 R.id.nav_logs -> {
                     binding.layoutHome.visibility = View.GONE
                     binding.layoutProfiles.visibility = View.GONE
+                    binding.layoutApps.visibility = View.GONE
                     binding.layoutLogs.visibility = View.VISIBLE
                     binding.layoutAbout.visibility = View.GONE
                     startLogAutoRefresh()
@@ -170,6 +211,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_about -> {
                     binding.layoutHome.visibility = View.GONE
                     binding.layoutProfiles.visibility = View.GONE
+                    binding.layoutApps.visibility = View.GONE
                     binding.layoutLogs.visibility = View.GONE
                     binding.layoutAbout.visibility = View.VISIBLE
                     stopLogAutoRefresh()
@@ -180,6 +222,22 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Setup Logs filters and actions
+        logsAdapter = LogsAdapter()
+        binding.rvLogsSimple.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
+        binding.rvLogsSimple.adapter = logsAdapter
+
+        binding.rgLogMode.setOnCheckedChangeListener { _, checkedId ->
+            val isDetailed = checkedId == R.id.rbLogDetailed
+            binding.rvLogsSimple.visibility = if (isDetailed) View.GONE else View.VISIBLE
+            binding.scrollLogs.visibility = if (isDetailed) View.VISIBLE else View.GONE
+            binding.tvLogsSubtitle.text = if (isDetailed) {
+                "Техническая информация для диагностики"
+            } else {
+                "Понятные сообщения о работе VPN"
+            }
+            updateLogsView()
+        }
+
         binding.rgLogFilters.setOnCheckedChangeListener { _, _ -> updateLogsView() }
         
         binding.btnLogClear.setOnClickListener {
@@ -187,13 +245,21 @@ class MainActivity : AppCompatActivity() {
             if (logFile.exists()) {
                 logFile.delete()
             }
+            currentLogEntries = emptyList()
+            logsAdapter.update(emptyList())
             binding.tvLogContent.text = "Логи пусты..."
+            binding.tvLogsEmpty.visibility = View.VISIBLE
             Toast.makeText(this, "Логи очищены", Toast.LENGTH_SHORT).show()
         }
 
         binding.btnLogCopy.setOnClickListener {
-            val logText = binding.tvLogContent.text.toString()
-            if (logText.isEmpty() || logText == "Логи пусты...") {
+            val logText = if (binding.rbLogDetailed.isChecked) {
+                binding.tvLogContent.text.toString()
+            } else {
+                if (currentLogEntries.isEmpty()) ""
+                else LogFormatter.formatUserFriendlyForCopy(currentLogEntries)
+            }
+            if (logText.isEmpty() || logText == "Логи пусты..." || logText == "Событий пока нет") {
                 Toast.makeText(this, "Логи пусты", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -220,6 +286,9 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             binding.tvVersion.text = "Версия 1.0"
         }
+
+        // Initialize Split Tunneling UI and settings
+        setupSplitTunneling()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -246,6 +315,9 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         stopTimer()
         stopLogAutoRefresh()
+        try {
+            mainScope.cancel()
+        } catch (e: Exception) {}
     }
 
     private fun startLogAutoRefresh() {
@@ -265,40 +337,217 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLogsView() {
         val logFile = File(File(filesDir, "logs"), "xray.log")
-        if (logFile.exists() && logFile.length() > 0) {
-            try {
-                val logsText = logFile.readText()
-                val lines = logsText.lines()
-                val isErrorFilter = binding.rbLogError.isChecked
+        val isErrorFilter = binding.rbLogError.isChecked
+        val isDetailed = binding.rbLogDetailed.isChecked
 
-                val filtered = if (isErrorFilter) {
-                    lines.filter { it.contains("Warning", ignoreCase = true) || 
-                                   it.contains("Error", ignoreCase = true) || 
-                                   it.contains("E/", ignoreCase = false) || 
-                                   it.contains("W/", ignoreCase = false) }
-                        .joinToString("\n")
-                } else {
-                    logsText
-                }
+        if (!logFile.exists() || logFile.length() == 0L) {
+            currentLogEntries = emptyList()
+            logsAdapter.update(emptyList())
+            binding.tvLogContent.text = "Логи пусты..."
+            binding.tvLogsEmpty.visibility = View.VISIBLE
+            binding.tvLogsEmpty.text = "Событий пока нет"
+            return
+        }
 
+        try {
+            val lines = logFile.readText().lines()
+            if (isDetailed) {
+                val filtered = LogFormatter.formatDetailed(lines, isErrorFilter)
                 if (filtered.isBlank() && isErrorFilter) {
                     binding.tvLogContent.text = "Ошибок не найдено..."
+                    binding.tvLogsEmpty.visibility = View.GONE
                 } else {
-                    // Only auto-scroll if user is at the bottom
-                    val isAtBottom = binding.scrollLogs.scrollY >= (binding.scrollLogs.getChildAt(0).measuredHeight - binding.scrollLogs.measuredHeight - 50)
-                    binding.tvLogContent.text = filtered
-                    
+                    val isAtBottom = binding.scrollLogs.scrollY >= (
+                        binding.scrollLogs.getChildAt(0).measuredHeight -
+                            binding.scrollLogs.measuredHeight - 50
+                        )
+                    binding.tvLogContent.text = filtered.ifBlank { "Логи пусты..." }
+                    binding.tvLogsEmpty.visibility = View.GONE
                     if (isAtBottom) {
                         binding.scrollLogs.post {
                             binding.scrollLogs.fullScroll(View.FOCUS_DOWN)
                         }
                     }
                 }
-            } catch (e: Exception) {
-                binding.tvLogContent.text = "Ошибка чтения логов: ${e.message}"
+            } else {
+                val entries = LogFormatter.parseUserFriendly(lines, isErrorFilter)
+                currentLogEntries = entries
+                logsAdapter.update(entries)
+
+                if (entries.isEmpty()) {
+                    binding.tvLogsEmpty.visibility = View.VISIBLE
+                    binding.tvLogsEmpty.text = if (isErrorFilter) {
+                        "Ошибок не найдено"
+                    } else {
+                        "Событий пока нет"
+                    }
+                } else {
+                    binding.tvLogsEmpty.visibility = View.GONE
+                    val layoutManager = binding.rvLogsSimple.layoutManager
+                        as androidx.recyclerview.widget.LinearLayoutManager
+                    val lastVisible = layoutManager.findLastCompletelyVisibleItemPosition()
+                    val isAtBottom = lastVisible >= entries.size - 2
+                    if (isAtBottom) {
+                        binding.rvLogsSimple.post {
+                            binding.rvLogsSimple.scrollToPosition(entries.size - 1)
+                        }
+                    }
+                }
             }
+        } catch (e: Exception) {
+            currentLogEntries = emptyList()
+            logsAdapter.update(emptyList())
+            binding.tvLogContent.text = "Ошибка чтения логов: ${e.message}"
+            binding.tvLogsEmpty.visibility = View.GONE
+        }
+    }
+
+    private val connectionModeChangeListener =
+        android.widget.RadioGroup.OnCheckedChangeListener { _, checkedId ->
+            if (isConnected) {
+                Toast.makeText(this, "Сначала отключитесь, чтобы сменить режим", Toast.LENGTH_SHORT).show()
+                applyConnectionModeSelection(readSavedConnectionMode())
+                return@OnCheckedChangeListener
+            }
+            onConnectionModeChanged(checkedId)
+        }
+
+    private fun setupConnectionMode() {
+        binding.rgConnectionMode.setOnCheckedChangeListener(connectionModeChangeListener)
+        applyConnectionModeSelection(readSavedConnectionMode())
+    }
+
+    private fun readSavedConnectionMode(): String {
+        return getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .getString("connection_mode", XrayService.MODE_VPN) ?: XrayService.MODE_VPN
+    }
+
+    private fun applyConnectionModeSelection(mode: String) {
+        binding.rgConnectionMode.setOnCheckedChangeListener(null)
+        if (mode == XrayService.MODE_PROXY) {
+            binding.rbModeProxy.isChecked = true
         } else {
-            binding.tvLogContent.text = "Логи пусты..."
+            binding.rbModeVpn.isChecked = true
+        }
+        binding.rgConnectionMode.setOnCheckedChangeListener(connectionModeChangeListener)
+        updateProxySettingsVisibility()
+    }
+
+    private fun restoreConnectionModeSelection() {
+        applyConnectionModeSelection(readSavedConnectionMode())
+    }
+
+    private fun setupProxySettings() {
+        updateProxyPreview()
+        binding.layoutProxySettings.setOnClickListener {
+            if (isConnected) {
+                Toast.makeText(this, "Сначала отключитесь, чтобы изменить порт", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            showProxyPortDialog()
+        }
+        updateProxySettingsVisibility()
+    }
+
+    private fun readProxyPort(): Int {
+        return getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .getInt(XrayService.PREF_PROXY_PORT, XrayService.DEFAULT_PROXY_PORT)
+    }
+
+    private fun saveProxyPort(port: Int): Boolean {
+        if (port !in 1024..65535) {
+            Toast.makeText(this, "Порт должен быть от 1024 до 65535", Toast.LENGTH_SHORT).show()
+            return false
+        }
+        getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .edit()
+            .putInt(XrayService.PREF_PROXY_PORT, port)
+            .apply()
+        updateProxyPreview()
+        return true
+    }
+
+    private fun updateProxyPreview() {
+        binding.tvProxyPreview.text = formatProxyAddress()
+    }
+
+    private fun updateProxySettingsVisibility() {
+        binding.layoutProxySettings.visibility =
+            if (isProxyMode() && !isConnected) View.VISIBLE else View.GONE
+        if (isProxyMode()) {
+            updateProxyPreview()
+        }
+    }
+
+    private fun showProxyPortDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_proxy_port, null)
+        val errorView = dialogView.findViewById<TextView>(R.id.tvPortError)
+        val input = dialogView.findViewById<android.widget.EditText>(R.id.etProxyPort).apply {
+            setText(readProxyPort().toString())
+            setSelection(text?.length ?: 0)
+        }
+
+        val dialog = com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Порт прокси")
+            .setView(dialogView)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Сохранить", null)
+            .create()
+
+        dialog.setOnShowListener {
+            val saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            saveButton.setOnClickListener {
+                val port = input.text?.toString()?.trim()?.toIntOrNull()
+                if (port == null) {
+                    errorView.text = "Введите число"
+                    errorView.visibility = View.VISIBLE
+                    return@setOnClickListener
+                }
+                if (!saveProxyPort(port)) {
+                    errorView.text = "Порт должен быть от 1024 до 65535"
+                    errorView.visibility = View.VISIBLE
+                    return@setOnClickListener
+                }
+                errorView.visibility = View.GONE
+                dialog.dismiss()
+            }
+        }
+        dialog.show()
+    }
+
+    private fun formatProxyAddress(): String {
+        val endpoint = xrayService?.proxyEndpoint
+        if (isConnected && !endpoint.isNullOrBlank()) {
+            return endpoint
+        }
+        return "127.0.0.1:${readProxyPort()}"
+    }
+
+    private fun onConnectionModeChanged(checkedId: Int) {
+        val mode = if (checkedId == R.id.rbModeProxy) {
+            XrayService.MODE_PROXY
+        } else {
+            XrayService.MODE_VPN
+        }
+        getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+            .edit()
+            .putString("connection_mode", mode)
+            .apply()
+        binding.layoutProxyInfo.visibility = View.GONE
+        updateProxySettingsVisibility()
+    }
+
+    private fun isProxyMode(): Boolean = binding.rbModeProxy.isChecked
+
+    private fun copyProxyAddress() {
+        val address = formatProxyAddress()
+        if (address.isBlank()) return
+        try {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("SOCKS Proxy", address))
+            Toast.makeText(this, "Адрес скопирован: $address", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка копирования: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -323,7 +572,11 @@ class MainActivity : AppCompatActivity() {
                 return
             }
         }
-        checkVpnPermissionAndStart()
+        if (isProxyMode()) {
+            startConnection()
+        } else {
+            checkVpnPermissionAndStart()
+        }
     }
 
     private fun checkVpnPermissionAndStart() {
@@ -331,20 +584,28 @@ class MainActivity : AppCompatActivity() {
         if (vpnIntent != null) {
             vpnPermissionLauncher.launch(vpnIntent)
         } else {
-            startVpn()
+            startConnection()
         }
     }
 
-    private fun startVpn() {
+    private fun startConnection() {
         // Clear logs instantly
         val logFile = File(File(filesDir, "logs"), "xray.log")
         if (logFile.exists()) logFile.delete()
+        currentLogEntries = emptyList()
+        logsAdapter.update(emptyList())
         binding.tvLogContent.text = "Подключение..."
+        binding.tvLogsEmpty.visibility = View.VISIBLE
+        binding.tvLogsEmpty.text = "Подключение…"
         
         updateUI(connecting = true)
         val intent = Intent(this, XrayService::class.java).apply {
             action = XrayService.ACTION_START
             putExtra("config_path", configFile!!.absolutePath)
+            putExtra(
+                XrayService.EXTRA_CONNECTION_MODE,
+                if (isProxyMode()) XrayService.MODE_PROXY else XrayService.MODE_VPN
+            )
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -374,28 +635,38 @@ class MainActivity : AppCompatActivity() {
             connecting -> {
                 binding.btnPower.state = PowerButton.State.CONNECTING
                 binding.tvStatus.visibility = View.VISIBLE
-                binding.tvStatus.text = "ПОДКЛЮЧЕНИЕ..."
+                binding.tvStatus.text = if (isProxyMode()) "ЗАПУСК ПРОКСИ..." else "ПОДКЛЮЧЕНИЕ..."
                 binding.tvStatus.setTextColor(ContextCompat.getColor(this, R.color.status_connecting))
                 binding.tvTimer.visibility = View.GONE
                 binding.speedSection.visibility = View.GONE
+                binding.layoutProxyInfo.visibility = View.GONE
+                binding.rgConnectionMode.isEnabled = false
+                updateProxySettingsVisibility()
             }
             connected -> {
                 binding.btnPower.state = PowerButton.State.CONNECTED
                 binding.tvStatus.visibility = View.VISIBLE
-                binding.tvStatus.text = "ПОДКЛЮЧЕНО"
+                binding.tvStatus.text = if (isProxyMode()) "ПРОКСИ АКТИВЕН" else "ПОДКЛЮЧЕНО"
                 binding.tvStatus.setTextColor(ContextCompat.getColor(this, R.color.status_connected))
+                binding.rgConnectionMode.isEnabled = false
+                updateProxySettingsVisibility()
 
-                // Show timer
                 binding.tvTimer.visibility = View.VISIBLE
                 val startTime = xrayService?.connectionStartTime ?: System.currentTimeMillis()
                 startTimer(startTime)
 
-                // Show speed section with fade-in
-                if (binding.speedSection.visibility != View.VISIBLE) {
-                    binding.speedSection.apply {
-                        alpha = 0f
-                        visibility = View.VISIBLE
-                        animate().alpha(1f).setDuration(400).start()
+                if (isProxyMode()) {
+                    binding.speedSection.visibility = View.GONE
+                    binding.tvProxyAddress.text = formatProxyAddress()
+                    binding.layoutProxyInfo.visibility = View.VISIBLE
+                } else {
+                    binding.layoutProxyInfo.visibility = View.GONE
+                    if (binding.speedSection.visibility != View.VISIBLE) {
+                        binding.speedSection.apply {
+                            alpha = 0f
+                            visibility = View.VISIBLE
+                            animate().alpha(1f).setDuration(400).start()
+                        }
                     }
                 }
             }
@@ -403,6 +674,9 @@ class MainActivity : AppCompatActivity() {
                 binding.btnPower.state = PowerButton.State.DISCONNECTED
                 binding.tvStatus.visibility = View.GONE
                 binding.tvTimer.visibility = View.GONE
+                binding.layoutProxyInfo.visibility = View.GONE
+                binding.rgConnectionMode.isEnabled = true
+                updateProxySettingsVisibility()
                 stopTimer()
 
                 // Hide speed section
@@ -561,7 +835,7 @@ class MainActivity : AppCompatActivity() {
             duration = 500
             interpolator = DecelerateInterpolator()
             addUpdateListener {
-                binding.tvConfigName.translationX = it.animatedValue as Float
+                binding.    tvConfigName.translationX = it.animatedValue as Float
             }
         }
         animator.start()
@@ -702,6 +976,7 @@ class MainActivity : AppCompatActivity() {
             val tvProfileStatus = itemView.findViewById<TextView>(R.id.tvProfileStatus)
             val btnDrag = itemView.findViewById<View>(R.id.btnDragProfile)
             val btnRename = itemView.findViewById<View>(R.id.btnRenameProfile)
+            val btnShare = itemView.findViewById<View>(R.id.btnShareProfile)
             val btnDelete = itemView.findViewById<View>(R.id.btnDeleteProfile)
 
             val isActive = (file.name == activeName)
@@ -732,6 +1007,10 @@ class MainActivity : AppCompatActivity() {
 
             btnRename.setOnClickListener {
                 showRenameProfileDialog(file)
+            }
+
+            btnShare.setOnClickListener {
+                shareProfile(file)
             }
 
             btnDelete.setOnClickListener {
@@ -910,6 +1189,24 @@ class MainActivity : AppCompatActivity() {
             .replace(Regex("[\\\\/:*?\"<>|]"), "_")
     }
 
+    private fun shareProfile(file: File) {
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                file
+            )
+            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(shareIntent, "Поделиться профилем ${file.name}"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Ошибка при экспорте: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun getProfileOrder(): List<String> {
         val order = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
             .getString("profile_order", "")
@@ -1053,5 +1350,147 @@ class MainActivity : AppCompatActivity() {
                 dialog.dismiss()
             }
             .show()
+    }
+
+    private fun setupSplitTunneling() {
+        val prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+        val splitEnabled = prefs.getBoolean("split_tunneling_enabled", false)
+        val splitMode = prefs.getString("split_tunneling_mode", "disallow") ?: "disallow"
+
+        binding.swSplitTunnelEnabled.isChecked = splitEnabled
+        if (splitMode == "allow") {
+            binding.rbSplitTunnelOnly.isChecked = true
+        } else {
+            binding.rbSplitTunnelBypass.isChecked = true
+        }
+
+        updateAppsControlsState(splitEnabled)
+
+        binding.swSplitTunnelEnabled.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("split_tunneling_enabled", isChecked).apply()
+            updateAppsControlsState(isChecked)
+            appsAdapter?.isEnabled = isChecked
+        }
+
+        binding.rgSplitTunnelMode.setOnCheckedChangeListener { _, checkedId ->
+            val mode = if (checkedId == R.id.rbSplitTunnelOnly) "allow" else "disallow"
+            prefs.edit().putString("split_tunneling_mode", mode).apply()
+        }
+
+        binding.etAppSearch.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filterAppsList()
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
+
+        binding.rgAppsFilter.setOnCheckedChangeListener { _, _ ->
+            filterAppsList()
+        }
+    }
+
+    private fun updateAppsControlsState(enabled: Boolean) {
+        binding.rgSplitTunnelMode.setEnabled(enabled)
+        for (i in 0 until binding.rgSplitTunnelMode.childCount) {
+            binding.rgSplitTunnelMode.getChildAt(i).isEnabled = enabled
+        }
+        binding.etAppSearch.isEnabled = enabled
+        binding.rgAppsFilter.setEnabled(enabled)
+        for (i in 0 until binding.rgAppsFilter.childCount) {
+            binding.rgAppsFilter.getChildAt(i).isEnabled = enabled
+        }
+        val alpha = if (enabled) 1.0f else 0.5f
+        binding.rgSplitTunnelMode.alpha = alpha
+        binding.etAppSearch.alpha = alpha
+        binding.rgAppsFilter.alpha = alpha
+        binding.rvAppsList.alpha = alpha
+    }
+
+    private fun loadInstalledApps() {
+        if (appsLoadJob?.isActive == true) return
+
+        binding.pbAppsLoading.visibility = View.VISIBLE
+        binding.tvNoAppsFound.visibility = View.GONE
+
+        appsLoadJob = mainScope.launch {
+            val appList = withContext(Dispatchers.IO) {
+                val pm = packageManager
+                val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA)
+                val prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+                val selectedSet = prefs.getStringSet("split_tunneling_packages", null) ?: emptySet()
+
+                val list = ArrayList<AppInfoItem>()
+                for (app in installed) {
+                    if (app.packageName == packageName) continue
+
+                    val name = app.loadLabel(pm).toString()
+                    val isSystem = (app.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                    val isSelected = selectedSet.contains(app.packageName)
+                    val icon = try { app.loadIcon(pm) } catch (e: Exception) { null }
+
+                    list.add(AppInfoItem(name, app.packageName, icon, isSystem, isSelected))
+                }
+                list.sortBy { it.name.lowercase() }
+                list
+            }
+
+            cachedAppsList = appList
+            binding.pbAppsLoading.visibility = View.GONE
+
+            val isSplitEnabled = binding.swSplitTunnelEnabled.isChecked
+
+            if (appsAdapter == null) {
+                appsAdapter = AppsAdapter(appList) { item, isSelected ->
+                    saveAppSelection(item.packageName, isSelected)
+                }.apply {
+                    isEnabled = isSplitEnabled
+                }
+                binding.rvAppsList.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@MainActivity)
+                binding.rvAppsList.adapter = appsAdapter
+            } else {
+                appsAdapter?.isEnabled = isSplitEnabled
+                appsAdapter?.updateData(appList)
+            }
+            filterAppsList()
+        }
+    }
+
+    private fun saveAppSelection(pkgName: String, isSelected: Boolean) {
+        val prefs = getSharedPreferences("vpn_prefs", MODE_PRIVATE)
+        val currentSet = prefs.getStringSet("split_tunneling_packages", null) ?: emptySet()
+        val newSet = HashSet(currentSet)
+        if (isSelected) {
+            newSet.add(pkgName)
+        } else {
+            newSet.remove(pkgName)
+        }
+        prefs.edit().putStringSet("split_tunneling_packages", newSet).apply()
+
+        if (binding.rgAppsFilter.checkedRadioButtonId == R.id.rbAppsSelected) {
+            filterAppsList()
+        }
+    }
+
+    private fun filterAppsList() {
+        val adapter = appsAdapter ?: return
+        val searchText = binding.etAppSearch.text.toString().trim().lowercase()
+        val filterId = binding.rgAppsFilter.checkedRadioButtonId
+
+        val filtered = cachedAppsList.filter { item ->
+            val matchesSearch = item.name.lowercase().contains(searchText) ||
+                                item.packageName.lowercase().contains(searchText)
+            if (!matchesSearch) return@filter false
+
+            when (filterId) {
+                R.id.rbAppsUser -> !item.isSystem
+                R.id.rbAppsSystem -> item.isSystem
+                R.id.rbAppsSelected -> item.isSelected
+                else -> true
+            }
+        }
+
+        adapter.setFilteredItems(filtered)
+        binding.tvNoAppsFound.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 }
